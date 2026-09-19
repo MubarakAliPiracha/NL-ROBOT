@@ -97,11 +97,11 @@ def introspect_joints(robot_id: int) -> List[Dict]:
         upper = info[9]
         name = name_b.decode("utf-8") if isinstance(name_b, bytes) else str(name_b)
         if jtype == p.JOINT_REVOLUTE:
-            tstr = "revolute"
+            # PyBullet has no continuous joint type: URDF "continuous" joints come back as
+            # revolute with an inverted (lower > upper) limit range.
+            tstr = "continuous" if lower > upper else "revolute"
         elif jtype == p.JOINT_PRISMATIC:
             tstr = "prismatic"
-        elif jtype == p.JOINT_CONTINUOUS:
-            tstr = "continuous"
         elif jtype == p.JOINT_FIXED:
             tstr = "fixed"
         else:

@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pybullet
+requests
+python-multipart
+websockets

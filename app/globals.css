@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colour tokens as RGB channels so Tailwind can apply alpha (bg-brand/10 etc). */
+:root {
+  color-scheme: light;
+  --bg: 238 243 251;
+  --surface: 255 255 255;
+  --surface-alt: 233 240 251;
+  --line: 214 224 240;
+  --fg: 20 33 61;
+  --muted: 100 116 139;
+  --brand: 47 111 224;
+  --brand-deep: 30 78 178;
+  --accent: 22 184 108;
+  --pop: 255 122 46;
+  --warn: 245 166 35;
+  --danger: 236 72 82;
+  --shadow: 30 60 120;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --bg: 11 18 36;
+  --surface: 20 30 54;
+  --surface-alt: 27 40 70;
+  --line: 40 56 92;
+  --fg: 230 237 250;
+  --muted: 148 163 190;
+  --brand: 74 140 255;
+  --brand-deep: 37 84 196;
+  --accent: 34 214 130;
+  --pop: 255 138 70;
+  --warn: 250 184 60;
+  --danger: 255 96 108;
+  --shadow: 0 0 0;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--muted) / 0.35);
+  border-radius: 9999px;
+}
+
+/* Tinkercad-style blue top bar */
+.topbar {
+  background: linear-gradient(90deg, rgb(var(--brand-deep)) 0%, rgb(var(--brand)) 100%);
+  color: #fff;
+}
+
+.hero-gradient {
+  background:
+    radial-gradient(circle at 15% 20%, rgb(255 255 255 / 0.22), transparent 40%),
+    linear-gradient(120deg, rgb(var(--brand)) 0%, #7c5cf0 55%, #d94fd0 100%);
+}
