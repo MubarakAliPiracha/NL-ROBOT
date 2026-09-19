@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, Github, Terminal, ArrowUp } from 'lucide-react';
+import { useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Plus, Github, Terminal, ArrowUp, Play, MoreVertical, Pencil, Copy, Trash2 } from 'lucide-react';
 import MinimalistDock, { type DockItem } from '@/components/ui/minimal-dock';
 import { SplashScreen } from '@/components/ui/splash-screen';
+import { HeroReplay } from '@/components/ui/hero-replay';
 import { NlLogoMark } from '@/components/ui/nl-logo';
 import { Logo } from '@/components/logo';
-import { useSims } from '@/lib/sims';
-
-
+import { useSims, type Sim } from '@/lib/sims';
+import { STARTING_POINTS, EXAMPLE_COMMANDS, warehouseWorld } from '@/lib/presets';
 
 function timeAgo(ts: number) {
   const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
@@ -19,11 +21,111 @@ function timeAgo(ts: number) {
   return `${Math.floor(s / 86400)} d ago`;
 }
 
+function SimCard({
+  sim,
+  onOpen,
+  onRename,
+  onDuplicate,
+  onDelete,
+}: {
+  sim: Sim;
+  onOpen: () => void;
+  onRename: (name: string) => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(sim.name);
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-line bg-surface transition hover:border-brand/50">
+      <button onClick={onOpen} className="block w-full text-left focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand">
+        <div className="flex h-36 items-center justify-center overflow-hidden border-b border-line bg-surfaceAlt">
+          {sim.thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={sim.thumb} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <NlLogoMark className="h-12 w-12 text-brand/70" />
+          )}
+        </div>
+        <div className="p-4">
+          {renaming ? (
+            <input
+              autoFocus
+              value={draft}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => {
+                setRenaming(false);
+                if (draft.trim()) onRename(draft.trim());
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') setRenaming(false);
+              }}
+              className="w-full border border-line bg-app px-1.5 py-0.5 text-sm font-semibold text-fg outline-none focus:border-brand"
+            />
+          ) : (
+            <div className="truncate font-semibold text-fg">{sim.name}</div>
+          )}
+          <div className="mt-1 truncate text-xs text-muted">{sim.robotName}</div>
+          <div className="mt-1 text-xs text-muted">{timeAgo(sim.updatedAt)}</div>
+        </div>
+      </button>
+
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            aria-label={`Options for ${sim.name}`}
+            className="absolute right-2 top-2 rounded-md border border-line bg-app/80 p-1.5 text-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand group-hover:opacity-100"
+          >
+            <MoreVertical size={14} />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={4}
+            className="z-40 min-w-[140px] border border-line bg-surface p-1 text-xs shadow-lift"
+          >
+            <DropdownMenu.Item
+              onSelect={() => {
+                setDraft(sim.name);
+                setRenaming(true);
+              }}
+              className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-fg outline-none data-[highlighted]:bg-brand/10 data-[highlighted]:text-brand"
+            >
+              <Pencil size={12} /> Rename
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              onSelect={onDuplicate}
+              className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-fg outline-none data-[highlighted]:bg-brand/10 data-[highlighted]:text-brand"
+            >
+              <Copy size={12} /> Duplicate
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator className="my-1 h-px bg-line" />
+            <DropdownMenu.Item
+              onSelect={onDelete}
+              className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-danger outline-none data-[highlighted]:bg-danger/15"
+            >
+              <Trash2 size={12} /> Delete
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
-  const { sims, ready, create, remove } = useSims();
+  const { sims, ready, create, duplicate, update, remove } = useSims();
 
   const createAndOpen = () => router.push(`/sim/${create().id}`);
+  const watchLive = () =>
+    router.push(
+      `/sim/${create({ world: warehouseWorld(), pendingCommand: 'Drive forward until you see the wall, then turn left' }).id}`,
+    );
 
   // Bottom dock: the page's primary navigation. Items act on real app state.
   const latest = [...sims].sort((a, b) => b.updatedAt - a.updatedAt)[0];
@@ -71,25 +173,66 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 py-8">
-        <section className="hero-gradient relative overflow-hidden p-8 sm:p-10">
-          <p className="text-xs text-muted">nl-robot @ ros2-humble : gazebo-fortress</p>
-          <h1 className="cursor-blink mt-3 max-w-xl text-2xl font-bold leading-tight text-fg sm:text-3xl">
-            $ tell a robot what to do
-          </h1>
-          <p className="mt-3 max-w-xl text-muted">
-            Upload a URDF, describe a motion in plain English, and it runs on real ROS 2
-            interfaces: /cmd_vel, FollowJointTrajectory, /scan.
-          </p>
-          <button
-            onClick={createAndOpen}
-            className="mt-6 inline-flex items-center gap-2 border border-brand bg-brand/10 px-5 py-2.5 text-sm font-bold text-brand transition hover:bg-brand/20"
-          >
-            <Plus size={16} strokeWidth={3} />
-            create new simulation
-          </button>
+      <main className="mx-auto max-w-6xl px-5 py-8 pb-28">
+        {/* 1. Hero: the product working, copy demoted beside it. */}
+        <section className="hero-gradient grid gap-6 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
+          <HeroReplay />
+          <div className="min-w-0">
+            <p className="text-xs text-muted">nl-robot @ ros2-humble : gazebo-fortress</p>
+            <h1 className="cursor-blink mt-2 text-2xl font-bold leading-tight text-fg sm:text-3xl">
+              $ tell a robot what to do
+            </h1>
+            <p className="font-prose mt-3 max-w-md text-sm text-muted">
+              Upload a URDF, describe a motion in plain English, and it runs on real ROS 2 interfaces:{' '}
+              <span className="font-mono text-fg/90">/cmd_vel</span>,{' '}
+              <span className="font-mono text-fg/90">FollowJointTrajectory</span>,{' '}
+              <span className="font-mono text-fg/90">/scan</span>.
+            </p>
+            <button
+              onClick={watchLive}
+              className="mt-5 inline-flex items-center gap-2 border border-brand bg-brand/10 px-5 py-2.5 text-sm font-bold text-brand transition hover:bg-brand/20"
+            >
+              <Play size={15} />
+              watch this run live
+            </button>
+          </div>
         </section>
 
+        {/* 2. Start with a robot, not a blank scene. */}
+        <section className="mt-8">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-brand">Start with a robot</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {STARTING_POINTS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => router.push(`/sim/${create(s.preset()).id}`)}
+                className="border border-line bg-surface p-4 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+              >
+                <div className="font-semibold text-fg">{s.title}</div>
+                <p className="font-prose mt-1 text-xs text-muted">{s.blurb}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 3. Example commands - click one, it creates the sim and runs it. */}
+        <section className="mt-8">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-brand">Or just say it</h2>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLE_COMMANDS.map((c) => (
+              <button
+                key={c.label}
+                onClick={() => router.push(`/sim/${create({ ...c.preset(), pendingCommand: c.command }).id}`)}
+                className="border border-line bg-surfaceAlt px-3 py-1.5 text-xs text-fg transition hover:border-brand hover:text-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+              >
+                <span className="text-brand">$ </span>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 4. Your simulations - demoted below the entry points. */}
         <section className="mt-10">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-brand">
             <NlLogoMark className="h-5 w-5" />
@@ -97,38 +240,28 @@ export default function HomePage() {
           </h2>
 
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <button
-              onClick={createAndOpen}
-              className="group flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand/50 bg-surface text-brand transition hover:border-brand hover:bg-brand/5"
-            >
-              <Plus size={34} className="transition group-hover:scale-110" />
-              <span className="text-sm font-semibold">Create your first simulation</span>
-            </button>
+            {ready && !sims.length && (
+              <button
+                onClick={createAndOpen}
+                className="group flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand/50 bg-surface text-brand transition hover:border-brand hover:bg-brand/5"
+              >
+                <Plus size={34} className="transition group-hover:scale-110" />
+                <span className="text-sm font-semibold">Create your first simulation</span>
+              </button>
+            )}
 
             {ready &&
               sims.map((sim) => (
-                <div
+                <SimCard
                   key={sim.id}
-                  className="group relative overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition hover:-translate-y-0.5 hover:shadow-lift"
-                >
-                  <Link href={`/sim/${sim.id}`} className="block">
-                    <div className="flex h-36 items-center justify-center border-b border-line bg-surface-alt">
-                      <NlLogoMark className="h-12 w-12 text-brand/70" />
-                    </div>
-                    <div className="p-4">
-                      <div className="truncate font-semibold text-fg">{sim.name}</div>
-                      <div className="mt-1 truncate text-xs text-muted">{sim.robotName}</div>
-                      <div className="mt-1 text-xs text-muted">{timeAgo(sim.updatedAt)}</div>
-                    </div>
-                  </Link>
-                  <button
-                    onClick={() => remove(sim.id)}
-                    aria-label={`Delete ${sim.name}`}
-                    className="absolute right-2 top-2 rounded-full bg-black/35 p-2 text-white opacity-0 transition hover:bg-danger group-hover:opacity-100 focus:opacity-100"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+                  sim={sim}
+                  onOpen={() => router.push(`/sim/${sim.id}`)}
+                  onRename={(name) => update(sim.id, { name, named: true })}
+                  onDuplicate={() => {
+                    duplicate(sim.id);
+                  }}
+                  onDelete={() => remove(sim.id)}
+                />
               ))}
           </div>
         </section>

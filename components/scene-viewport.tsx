@@ -175,6 +175,39 @@ function SensorRays({ latest }: { latest: MutableRefObject<RobotSnapshot> }) {
   );
 }
 
+/** Periodically hands a small JPEG of the canvas up to the app (sim thumbnails).
+ *  192px wide, ~10-15 kB - safe for localStorage. */
+function SnapshotSender({ onSnapshot }: { onSnapshot: (dataUrl: string) => void }) {
+  const gl = useThree((s) => s.gl);
+  // The parent re-renders ~10x/s, so the callback changes identity constantly;
+  // holding it in a ref keeps the capture timers from being reset every render.
+  const cb = useRef(onSnapshot);
+  cb.current = onSnapshot;
+  useEffect(() => {
+    const capture = () => {
+      try {
+        const src = gl.domElement;
+        const w = 192;
+        const h = Math.round((src.height / src.width) * w);
+        const out = document.createElement('canvas');
+        out.width = w;
+        out.height = h;
+        out.getContext('2d')?.drawImage(src, 0, 0, w, h);
+        cb.current(out.toDataURL('image/jpeg', 0.7));
+      } catch {
+        /* tainted canvas or context loss: skip this shot */
+      }
+    };
+    const first = setTimeout(capture, 8000);
+    const timer = setInterval(capture, 30000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [gl]);
+  return null;
+}
+
 /** CAD-style grid: cell size steps with camera distance so lines stay legible
  *  from tabletop zoom to full-scene overview. State updates only on tier change --
  *  never per frame. */
@@ -374,6 +407,7 @@ function WorldShape({
   tool: Tool;
   onDown: (e: ThreeEvent<PointerEvent>, obj: WorldObject) => void;
   onTransform: (id: string, patch: Transform) => void;
+  onSnapshot?: (dataUrl: string) => void;
 }) {
   const geometry = useMemo(() => makeGeometry(obj), [obj.kind, obj.w, obj.d, obj.h]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -479,6 +513,7 @@ function World({
   latest: MutableRefObject<RobotSnapshot>;
   tool: Tool;
   onTransform: (id: string, patch: Transform) => void;
+  onSnapshot?: (dataUrl: string) => void;
   objects: WorldObject[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -572,12 +607,14 @@ export function SceneViewport({
   viewKey,
   cameraScale,
   onTransform,
+  onSnapshot,
 }: {
   cameraScale: number;
   tool: Tool;
   follow: boolean;
   viewKey: number;
   onTransform: (id: string, patch: Transform) => void;
+  onSnapshot?: (dataUrl: string) => void;
   info: RobotInfo | null;
   latest: MutableRefObject<RobotSnapshot>;
   traceKey: number;
@@ -598,6 +635,7 @@ export function SceneViewport({
     <div className="relative h-full w-full">
       <Canvas
         shadows
+        gl={{ preserveDrawingBuffer: true }}
         dpr={[1, 2]}
         camera={{ position: [2.8, 3.3, 3.6], fov: 45 }}
         onPointerMissed={() => onSelect(null)}
@@ -641,6 +679,7 @@ export function SceneViewport({
           />
         </group>
 
+        {onSnapshot && <SnapshotSender onSnapshot={onSnapshot} />}
         <CameraRig latest={latest} viewKey={viewKey} follow={follow} k={cameraScale} robotKey={key} />
         <OrbitControls
           makeDefault

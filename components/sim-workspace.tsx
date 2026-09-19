@@ -208,7 +208,11 @@ export function SimWorkspace() {
         if (result.plan?.length) setActivePlan(result.plan as unknown as PlanStep[]);
       }
       setList((m) => m.map((x) => (x.id === msgId ? { ...x, status: 'ok', result } : x)));
-      update(id, {});
+      if (mode === 'robot' && sim && !sim.named) {
+        update(id, { name: `tb3 · ${trimmed.slice(0, 30)}`, named: true });
+      } else {
+        update(id, {});
+      }
     } catch (e) {
       setList((m) => m.map((x) => (x.id === msgId ? { ...x, status: 'error', error: (e as Error).message } : x)));
     }
@@ -259,6 +263,21 @@ export function SimWorkspace() {
     setSelectedId(oid);
     if (oid) setTab('shapes');
   }, []);
+
+  // Example chips land here with a command attached: run it once, then clear it
+  // so a reload never replays it.
+  const pendingRan = useRef(false);
+  useEffect(() => {
+    const cmd = sim?.pendingCommand;
+    if (!cmd || !health || !robot || pendingRan.current) return;
+    pendingRan.current = true;
+    update(id, { pendingCommand: undefined });
+    // Deliberately NOT cleaned up on dep change: update() above mutates `sim`,
+    // which re-runs this effect immediately - a cleanup would cancel the timer
+    // before it ever fired. pendingRan guards against double-sends instead.
+    setTimeout(() => void send(cmd, 'robot'), 900); // let the world sync land first
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim?.pendingCommand, health, robot]);
 
   // CAD-style shortcuts (ignored while typing in a field)
   useEffect(() => {
@@ -600,6 +619,7 @@ export function SimWorkspace() {
             follow={follow}
             viewKey={viewKey}
             onTransform={transformObject}
+            onSnapshot={(dataUrl) => update(id, { thumb: dataUrl })}
           />
           <ViewportToolbar
             tool={tool}
