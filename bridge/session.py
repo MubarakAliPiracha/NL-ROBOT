@@ -231,6 +231,8 @@ class Session:
         self._spawned.clear()
         self.executor.held_id = None
         self.node.set_pose(ROBOT_NAME, 0.0, 0.0, 0.06, 0.0)
+        time.sleep(0.3)  # let the teleport land before declaring the new odometry zero
+        self.state.rebase_odometry()
         if self.node.controller_ready(timeout=0.5):
             self.node.send_trajectory(dict(self._default_joints), 1.0)
         time.sleep(0.2)

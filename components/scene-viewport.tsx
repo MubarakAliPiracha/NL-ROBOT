@@ -70,11 +70,13 @@ function RobotModel({
   latest,
   robotColor,
   onError,
+  onReady,
 }: {
   info: RobotInfo;
   latest: MutableRefObject<RobotSnapshot>;
   robotColor: string;
   onError: (msg: string | null) => void;
+  onReady: () => void;
 }) {
   const [robot, setRobot] = useState<URDFRobot | null>(null);
 
@@ -95,6 +97,7 @@ function RobotModel({
           c.castShadow = true;
         });
         setRobot(r);
+        onReady();
       },
       undefined,
       (e) => !cancelled && onError(`Couldn't render this robot in the viewport: ${String(e)}`),
@@ -549,8 +552,10 @@ export function SceneViewport({
 }) {
   const colors = palette.dark;
   const [error, setError] = useState<string | null>(null);
+  const [robotReady, setRobotReady] = useState(false);
   const [dragging, setDragging] = useState(false);
   const key = useMemo(() => info?.source ?? 'none', [info]);
+  useEffect(() => setRobotReady(false), [key]);
 
   return (
     <div className="relative h-full w-full">
@@ -585,7 +590,16 @@ export function SceneViewport({
         {/* URDF / PyBullet are Z-up; three.js is Y-up. Everything physical lives in this rotated group. */}
         <group rotation={[-Math.PI / 2, 0, 0]}>
           <axesHelper args={[0.6]} />
-          {info && <RobotModel key={key} info={info} latest={latest} robotColor={colors.robot} onError={setError} />}
+          {info && (
+            <RobotModel
+              key={key}
+              info={info}
+              latest={latest}
+              robotColor={colors.robot}
+              onError={setError}
+              onReady={() => setRobotReady(true)}
+            />
+          )}
           {info?.mobile && <FocusRing latest={latest} k={cameraScale} />}
           {info?.mobile && <SensorRays latest={latest} />}
           {info?.mobile && <PathTrace latest={latest} resetKey={`${traceKey}-${info.source}`} planned={plannedPath} />}
@@ -615,6 +629,13 @@ export function SceneViewport({
           }}
         />
       </Canvas>
+      {info && !robotReady && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-app/60">
+          <div className="border border-line bg-surface px-4 py-2.5 text-xs text-muted">
+            <span className="text-brand">$</span> loading robot meshes<span className="cursor-blink" />
+          </div>
+        </div>
+      )}
       {error && (
         <div className="absolute bottom-4 left-1/2 max-w-md -translate-x-1/2 rounded-xl bg-danger px-4 py-2 text-sm text-white shadow-lift">
           {error}

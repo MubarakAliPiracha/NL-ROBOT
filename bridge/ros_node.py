@@ -65,6 +65,10 @@ class LatestState:
         self.base_twist: List[float] = [0.0, 0.0]  # linear v, angular w from /odom
         self.imu: Dict[str, float] = {}
         self.real_scan: Dict[str, float] = {}
+        # Odometry rebase. Teleporting the model (reset) does not reset the DiffDrive
+        # odometry -- it is integrated wheel motion -- so without this the robot keeps
+        # rendering at its pre-reset pose and every later plan drives from a stale frame.
+        self._odo_zero = (0.0, 0.0, 0.0)  # x, y, yaw subtracted from every reading
 
     def set_joints(self, names, positions) -> None:
         with self._lock:
@@ -73,11 +77,24 @@ class LatestState:
 
     def set_base(self, pos, quat, twist=None) -> None:
         with self._lock:
-            self.base_pos = [float(c) for c in pos]
-            self.base_quat = [float(c) for c in quat]
+            x0, y0, yaw0 = self._odo_zero
+            raw_yaw = quat_to_yaw(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
+            dx, dy = float(pos[0]) - x0, float(pos[1]) - y0
+            cos0, sin0 = math.cos(-yaw0), math.sin(-yaw0)
+            self._raw_base = (float(pos[0]), float(pos[1]), raw_yaw)
+            self.base_pos = [dx * cos0 - dy * sin0, dx * sin0 + dy * cos0, float(pos[2])]
+            qx, qy, qz, qw = yaw_to_quat(raw_yaw - yaw0)
+            self.base_quat = [qx, qy, qz, qw]
             if twist is not None:
                 self.base_twist = [float(twist[0]), float(twist[1])]
             self.have_odom = True
+
+    def rebase_odometry(self) -> None:
+        """Declare the robot's CURRENT odometry pose to be the origin (used by reset)."""
+        with self._lock:
+            self._odo_zero = getattr(self, "_raw_base", (0.0, 0.0, 0.0))
+            self.base_pos = [0.0, 0.0, 0.0]
+            self.base_quat = [0.0, 0.0, 0.0, 1.0]
 
     def set_imu(self, data: Dict[str, float]) -> None:
         with self._lock:

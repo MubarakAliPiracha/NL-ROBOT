@@ -29,7 +29,7 @@ import { useSims } from '@/lib/sims';
 import { useRobotSocket } from '@/lib/use-robot-socket';
 import { ConsolePanel } from '@/components/console-panel';
 import { PlanSteps, type PlanStep } from '@/components/plan-steps';
-import type { WorldObject } from '@/lib/world';
+import { SHAPES, newObject, type WorldObject } from '@/lib/world';
 
 type Msg = {
   id: number;
@@ -212,6 +212,17 @@ export function SimWorkspace() {
     } catch (e) {
       setList((m) => m.map((x) => (x.id === msgId ? { ...x, status: 'error', error: (e as Error).message } : x)));
     }
+  };
+
+  const runDemo = () => {
+    // Stage the classic demo without typing: a wall ahead, then the wall-follow command.
+    const wallDef = SHAPES.find((s) => s.preset === 'wall') ?? SHAPES[0];
+    if (!objects.length) {
+      const wall = newObject(wallDef, objects, robot?.scale);
+      setObjects((prev) => [...prev, wall]);
+    }
+    // Small delay so the debounced world sync reaches the sim before the plan runs.
+    setTimeout(() => void send('Drive forward until you see the wall, then turn left', 'robot'), 600);
   };
 
   const onSubmit = (e: FormEvent) => {
@@ -604,12 +615,25 @@ export function SimWorkspace() {
           )}
 
           <div className={panel === 'console' ? 'hidden' : 'min-h-0 flex-1 space-y-3 overflow-y-auto p-4'}>
-            {panel === 'robot' && activePlan.length > 0 && <PlanSteps steps={activePlan} snapshot={snapshot} />}
+            {panel === 'robot' && activePlan.length > 0 && (
+              <div className="sticky top-0 z-10 -mx-1 px-1 pb-1" style={{ background: 'rgb(var(--surface))' }}>
+                <PlanSteps steps={activePlan} snapshot={snapshot} />
+              </div>
+            )}
             {!list.length && (
               <div className="space-y-2">
                 <p className="text-sm text-muted">
                   {panel === 'map' ? 'Describe a map and I will build it out of shapes:' : 'Type what the robot should do - it runs on real ROS 2 topics. Or start with:'}
                 </p>
+                {panel === 'robot' && (
+                  <button
+                    onClick={runDemo}
+                    disabled={busy || !health}
+                    className="flex w-full items-center gap-2 border border-brand bg-brand/10 px-3 py-2.5 text-left text-sm font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+                  >
+                    <span>&#9654;</span> Run the demo - wall + drive + turn, one click
+                  </button>
+                )}
                 {(panel === 'map' ? MAP_SUGGESTIONS : suggestions).map((s) => (
                   <button
                     key={s}
