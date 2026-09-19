@@ -23,6 +23,7 @@ import { Logo } from '@/components/logo';
 import { SceneViewport } from '@/components/scene-viewport';
 import { ShapesPanel } from '@/components/shapes-panel';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ViewportToolbar, type Tool } from '@/components/viewport-toolbar';
 import { api, type CommandResult, type Health, type RobotInfo } from '@/lib/api';
 import { useSims } from '@/lib/sims';
 import { useRobotSocket } from '@/lib/use-robot-socket';
@@ -68,6 +69,11 @@ export function SimWorkspace() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [mapMessages, setMapMessages] = useState<Msg[]>([]);
   const [panel, setPanel] = useState<'robot' | 'map'>('robot');
+  const [traceKey, setTraceKey] = useState(0); // bump to clear the robot's path trail
+  const [tool, setTool] = useState<Tool>('select');
+  const [follow, setFollow] = useState(false);
+  const [viewKey, setViewKey] = useState(0); // bump to reset the camera
+  const [plannedPath, setPlannedPath] = useState<[number, number][] | null>(null);
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState<'robot' | 'shapes'>('robot');
   const [objects, setObjects] = useState<WorldObject[]>([]);
@@ -181,6 +187,8 @@ export function SimWorkspace() {
   const reset = async () => {
     try {
       setRobot(await api.resetRobot());
+      setTraceKey((k) => k + 1);
+      setPlannedPath(null);
       setNotice(null);
     } catch (e) {
       setNotice((e as Error).message);
@@ -191,6 +199,10 @@ export function SimWorkspace() {
     const trimmed = text.trim();
     if (!trimmed) return;
     const setList = mode === 'map' ? setMapMessages : setMessages;
+    if (mode === 'robot') {
+      setTraceKey((k) => k + 1); // new request: start a fresh trail and drop the old route
+      setPlannedPath(null);
+    }
     const msgId = nextId.current++;
     setList((m) => [...m, { id: msgId, text: trimmed, status: 'pending' }]);
     setDraft('');
@@ -200,6 +212,7 @@ export function SimWorkspace() {
         setObjects(result.world);
         setSelectedId(null);
       }
+      if (mode === 'robot') setPlannedPath(result.path && result.path.length > 1 ? result.path : null);
       setList((m) => m.map((x) => (x.id === msgId ? { ...x, status: 'ok', result } : x)));
       update(id, {});
     } catch (e) {
@@ -232,10 +245,37 @@ export function SimWorkspace() {
     (oid: string, x: number, y: number) => setObjects((prev) => prev.map((o) => (o.id === oid ? { ...o, x, y } : o))),
     [],
   );
+  const transformObject = useCallback(
+    (oid: string, patch: Partial<Pick<WorldObject, 'x' | 'y' | 'z' | 'yaw'>>) =>
+      setObjects((prev) => prev.map((o) => (o.id === oid ? { ...o, ...patch } : o))),
+    [],
+  );
   const selectObject = useCallback((oid: string | null) => {
     setSelectedId(oid);
     if (oid) setTab('shapes');
   }, []);
+
+  // CAD-style shortcuts (ignored while typing in a field)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const map: Record<string, Tool> = { v: 'select', m: 'move', r: 'rotate', h: 'pan', o: 'orbit' };
+      if (map[k]) setTool(map[k]);
+      else if (k === 'f') setViewKey((n) => n + 1);
+      else if (k === 'escape') {
+        setSelectedId(null);
+        setTool('select');
+      } else if ((k === 'delete' || k === 'backspace') && selectedId) {
+        setObjects((prev) => prev.filter((o) => o.id !== selectedId));
+        setSelectedId(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId]);
 
   if (ready && !sim) {
     return (
@@ -477,6 +517,7 @@ export function SimWorkspace() {
                 onChange={changeObject}
                 onDelete={deleteObject}
                 onSelect={selectObject}
+                scale={robot?.scale}
               />
             )}
           </div>
@@ -499,6 +540,23 @@ export function SimWorkspace() {
             selectedId={selectedId}
             onSelect={selectObject}
             onMove={moveObject}
+            traceKey={traceKey}
+            plannedPath={plannedPath}
+            tool={tool}
+            cameraScale={Math.max(1, robot?.scale?.factor ?? 1)}
+            follow={follow}
+            viewKey={viewKey}
+            onTransform={transformObject}
+          />
+          <ViewportToolbar
+            tool={tool}
+            onTool={setTool}
+            follow={follow}
+            onFollow={() => setFollow((f) => !f)}
+            onFit={() => setViewKey((n) => n + 1)}
+            canDelete={!!selectedId}
+            hasSelection={!!selectedId}
+            onDelete={() => selectedId && deleteObject(selectedId)}
           />
           {dragging && (
             <div className="pointer-events-none absolute inset-3 flex items-center justify-center rounded-2xl border-4 border-dashed border-brand bg-brand/15 text-lg font-bold text-brand">

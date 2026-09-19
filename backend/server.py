@@ -246,9 +246,20 @@ class Session:
             self._start_threads()
             return self.info
 
+    def _scale(self) -> Dict:
+        """How big things should be for this robot (used by the shape palette; the AI gets a richer guide)."""
+        if self.vehicle:
+            unit = max(0.2, 2 * self.vehicle.hw)
+            spawn_x = max(2.0, 5 * unit, 2 * self.vehicle.hl + 1.5 * unit)
+        else:
+            reach = self.arm_info.get("reach") or 1.0
+            unit, spawn_x = max(0.1, 0.25 * reach), 0.75 * reach
+        return {"unit_m": round(unit, 3), "spawn_x": round(spawn_x, 2), "factor": round(unit / 0.4, 3)}
+
     def _decorate(self, info: Dict) -> Dict:
         return {
             **info,
+            "scale": self._scale(),
             "joints": self.joints,
             "mobile": self.vehicle is not None,
             "wheels": [w["name"] for w in self.vehicle.wheels] if self.vehicle else [],
@@ -637,6 +648,31 @@ def describe_state() -> Dict:
                 "min": r(math.degrees(lo)), "max": r(math.degrees(hi)), "now": r(math.degrees(now)),
             })
     robot["joints"] = joints
+    if veh:
+        length, width, height = 2 * veh.hl, 2 * veh.hw, veh.height
+        robot["size_m"] = [r(length), r(width), r(height)]
+        robot["scale_guide"] = {
+            "unit_m": r(width),
+            "min_corridor_width_m": r(max(width + 1.0, 1.8 * width)),
+            "min_turnaround_space_m": r(2 * veh.radius * 1.2),
+            "wall_height_m": r(max(1.0, 1.3 * height)),
+            "wall_thickness_m": r(max(0.2, 0.1 * width)),
+            "obstacle_sizes_m": {"small": r(0.5 * width), "medium": r(width), "large": r(2 * width)},
+            "clear_start_radius_m": r(veh.radius * 1.5 + 0.5),
+            "typical_distance_ahead_m": r(max(4.0, 4 * length)),
+            "arena_half_extent_m": r(max(12.0, 8 * length)),
+        }
+        if s.gripper:
+            robot["scale_guide"]["graspable_size_max_m"] = r(0.8 * s.gripper["opening"])
+    else:
+        reach = s.arm_info.get("reach") or 1.0
+        robot["scale_guide"] = {
+            "unit_m": r(0.25 * reach),
+            "object_sizes_m": {"small": r(0.06 * reach), "medium": r(0.15 * reach), "large": r(0.3 * reach)},
+            "place_targets_between_m": [r(0.35 * reach), r(0.8 * reach)],
+            "wall_thickness_m": r(max(0.03, 0.05 * reach)),
+            "table_height_m": r(0.35 * reach),
+        }
     if s.gripper:
         robot["gripper"] = {
             "joints": s.gripper["joints"], "max_opening_m": s.gripper["opening"], "fingers_reach_ahead_m": s.gripper["tip_ahead"],
@@ -661,9 +697,10 @@ def describe_state() -> Dict:
 MAP_DIRECTIVE = (
     "MAP BUILDING MODE. Only build or edit the world; set steps to [] and never move the robot. Build what the user describes "
     "as completely and as well as you can (up to about 70 objects; merge walls that run in a straight line into single long boxes). "
-    "Unless the user says to add to or change the existing map, set world.clear=true and rebuild from scratch. Keep about 1.5 m around "
-    "the origin free for the robot, and for mazes guarantee a path from the start to an exit. Use the robot footprint in STATE to size "
-    "corridors and doorways so the robot fits.\nUser request: "
+    "Unless the user says to add to or change the existing map, set world.clear=true and rebuild from scratch. Scale EVERYTHING to this "
+    "robot using STATE robot.size_m and robot.scale_guide (corridor widths, wall height and thickness, obstacle sizes, distances, "
+    "clear start area): a map for a 7 m truck looks nothing like one for a 0.4 m rover. For mazes guarantee a path from the start to an "
+    "exit that the robot physically fits through.\nUser request: "
 )
 
 
@@ -725,6 +762,12 @@ def command(body: CommandBody) -> Dict:
     if not actions and not world_changed:
         raise HTTPException(422, (reply + " " if reply else "") + "Nothing runnable came out of that." + (" " + " ".join(warnings) if warnings else ""))
 
+    path: List = []
+    if actions and session.vehicle is not None and not map_mode:
+        try:
+            path = session.vehicle.preview(actions)  # computed before the robot starts moving
+        except Exception as e:  # a preview failure must never block the command
+            print("Route preview failed:", e)
     if actions:
         session.queue.append({"plan": actions, "repeat": repeat})
     if not map_mode:
@@ -732,7 +775,7 @@ def command(body: CommandBody) -> Dict:
     return {
         "ok": True, "source": source, "reply": reply, "plan": actions, "repeat": repeat,
         "world": session.world if world_changed else None, "warnings": warnings,
-        "llm": llm.status(), "llm_error": llm_error,
+        "llm": llm.status(), "llm_error": llm_error, "path": path,
     }
 
 

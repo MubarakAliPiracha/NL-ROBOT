@@ -65,6 +65,7 @@ class Vehicle:
         self.hl, self.hw = max(0.05, (x_hi - x_lo) / 2), max(0.05, (y_hi - y_lo) / 2)
         self.cx, self.cy = (x_hi + x_lo) / 2, (y_hi + y_lo) / 2
         self.radius = math.hypot(self.hl, self.hw)
+        self.height = max(0.05, max_z - min_z)
         # Half-angle of the sector swept by the front corners when moving forward (corner angle + margin).
         self.front_sector = max(math.radians(25), math.atan2(self.hw, self.hl) + 0.17)
         self.ray_heights = [min_z + 0.06 - bpos[2], (min_z + max_z) / 2 - bpos[2]]
@@ -79,6 +80,11 @@ class Vehicle:
                 p.setJointMotorControl2(robot, j["index"], p.VELOCITY_CONTROL, targetVelocity=0, force=0)
         for w in wheels:
             p.changeDynamics(robot, w["index"], lateralFriction=1.2)
+            if len(wheels) > 2:
+                # Skid-steer (4+ wheels): to turn on the spot every wheel must slide sideways. Keep full grip in the
+                # rolling direction but let wheels slip along their own axle, or long/heavy robots just stall.
+                axis = p.getJointInfo(robot, w["index"])[13]
+                p.changeDynamics(robot, w["index"], anisotropicFriction=[0.12 if abs(axis[i]) > 0.7 else 1.0 for i in range(3)])
 
     def _boundary(self, a: float) -> float:
         """Distance from the footprint centre to its edge along direction `a` (robot frame)."""
@@ -214,6 +220,69 @@ class Vehicle:
         """Clearance ahead in metres, or None if nothing is in sensor range."""
         d = self._window(self.clearances(), 0.0, FRONT_HALF_ANGLE)
         return d if d < MAX_RANGE - 0.5 else None
+
+    # ---- route preview ---------------------------------------------------
+    def _clear_ahead_from(self, x: float, y: float, yaw: float, angle: float = 0.0) -> float:
+        """Clearance (m) from a hypothetical pose along `angle`, or MAX_RANGE if nothing is in range."""
+        bpos, _ = base_frame(self.robot)
+        starts = [[x, y, bpos[2] + h] for h in self.ray_heights]
+        a = yaw + angle
+        ends = [[s[0] + MAX_RANGE * math.cos(a), s[1] + MAX_RANGE * math.sin(a), s[2]] for s in starts]
+        hits = p.rayTestBatch(starts, ends, collisionFilterMask=RAY_MASK)
+        d = min((h[2] * MAX_RANGE for h in hits if h[0] >= 0), default=MAX_RANGE)
+        return MAX_RANGE if d >= MAX_RANGE - 1e-3 else max(0.0, d - self._boundary(wrap(angle)))
+
+    def preview(self, actions: List[Dict]) -> List[List[float]]:
+        """Predict the route a plan will take as a polyline of [x, y] points (best effort, one pass).
+
+        Follows drives, turns, faces and go_to steps; stops at anything whose path can't be known in advance
+        (roaming / obstacle avoidance, grasping).
+        """
+        origin, yaw = self._origin()
+        x, y = origin[0], origin[1]
+        pts = [[round(x, 3), round(y, 3)]]
+        for a in actions:
+            prim, pr = a.get("primitive"), a.get("params") or {}
+            if prim in ("drive", "move"):
+                sp = pr.get("speed")
+                v = 0.8 if sp is None or abs(float(sp)) > 2.0 else abs(float(sp))
+                reverse = bool(pr.get("reverse"))
+                if pr.get("distance") is not None:
+                    dist = abs(float(pr["distance"]))
+                elif pr.get("duration") is not None:
+                    dist = v * float(pr["duration"])
+                elif pr.get("until_front_within", pr.get("until_within")) is not None:
+                    dist = max(0.0, self._clear_ahead_from(x, y, yaw) - float(pr.get("until_front_within", pr.get("until_within"))))
+                else:
+                    dist = v * 2.0
+                if not reverse and pr.get("safe", True):
+                    dist = min(dist, max(0.0, self._clear_ahead_from(x, y, yaw) - 0.06))
+                s = -1.0 if reverse else 1.0
+                x, y = x + s * dist * math.cos(yaw), y + s * dist * math.sin(yaw)
+            elif prim == "turn":
+                yaw = wrap(yaw + math.radians(float(pr.get("angle_degrees", 90.0))))
+                continue
+            elif prim in ("go_to", "face") and pr.get("x") is not None:
+                dx, dy = float(pr["x"]) - x, float(pr["y"]) - y
+                bearing = math.atan2(dy, dx)
+                if prim == "go_to":
+                    dist = math.hypot(dx, dy)
+                    if pr.get("target_radius") is not None:
+                        dist -= self._boundary(wrap(bearing - yaw)) + float(pr["target_radius"]) + float(pr.get("stop_distance", 0.2))
+                    else:
+                        dist -= 0.15
+                    dist = max(0.0, dist)
+                    x, y = x + dist * math.cos(bearing), y + dist * math.sin(bearing)
+                yaw = bearing
+                if prim == "face":
+                    continue
+            elif prim in ("wait", "stop", "set_joints", "release", "flap", "circle", "move_ee"):
+                continue
+            else:
+                break  # avoid_obstacles / grasp / unknown: the route isn't known ahead of time
+            if math.hypot(x - pts[-1][0], y - pts[-1][1]) > 0.02:
+                pts.append([round(x, 3), round(y, 3)])
+        return pts if len(pts) > 1 else []
 
     # ---- behaviours ------------------------------------------------------
     def run(self, action: Dict, stop_event, queue: Optional[deque]) -> bool:

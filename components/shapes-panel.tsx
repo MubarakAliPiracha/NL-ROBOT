@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
 import { ShapeIcon } from '@/components/shape-icon';
-import { SHAPES, dimMode, newObject, withDims, type WorldObject } from '@/lib/world';
+import { SHAPES, dimMode, newObject, withDims, type RobotScale, type WorldObject } from '@/lib/world';
 
 const fmt = (v: number) => String(Math.round(v * 1000) / 1000);
 
@@ -69,7 +69,9 @@ export function ShapesPanel({
   onChange,
   onDelete,
   onSelect,
+  scale,
 }: {
+  scale?: RobotScale;
   objects: WorldObject[];
   selectedId: string | null;
   onAdd: (o: WorldObject) => void;
@@ -90,7 +92,7 @@ export function ShapesPanel({
           {SHAPES.map((def) => (
             <button
               key={def.label}
-              onClick={() => onAdd(newObject(def, objects))}
+              onClick={() => onAdd(newObject(def, objects, scale))}
               className="flex flex-col items-center rounded-xl border border-line bg-surfaceAlt px-1 pb-1.5 pt-2 text-xs font-semibold transition hover:-translate-y-0.5 hover:border-brand hover:shadow-card"
             >
               <ShapeIcon kind={def.kind} color={def.color} />

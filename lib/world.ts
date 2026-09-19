@@ -45,17 +45,22 @@ export const dimMode = (kind: ShapeKind): DimMode =>
 
 const SPAWN_Y = [0, 1.5, -1.5, 3, -3];
 
-export function newObject(def: ShapeDef, existing: WorldObject[]): WorldObject {
+export type RobotScale = { unit_m: number; spawn_x: number; factor: number };
+
+/** Default shape sizes are for a 0.4 m-wide rover; `scale` grows or shrinks them (and their spawn spot) for the loaded robot. */
+export function newObject(def: ShapeDef, existing: WorldObject[], scale?: RobotScale): WorldObject {
   const n = existing.length;
-  const [w, d, h] = def.size;
+  const f = Math.max(0.3, Math.min(15, scale?.factor ?? 1));
+  const sz = (v: number) => Math.max(0.02, Math.round(v * f * 100) / 100);
+  const [w, d, h] = def.size.map(sz);
   const sameName = existing.filter((o) => o.name.startsWith(def.label)).length;
   return {
     id: Math.random().toString(36).slice(2, 9),
     kind: def.kind,
     name: sameName ? `${def.label} ${sameName + 1}` : def.label,
     // Drop new shapes in front of the robot, fanning out sideways so they don't overlap.
-    x: 2 + Math.floor(n / SPAWN_Y.length) * 1.5,
-    y: SPAWN_Y[n % SPAWN_Y.length],
+    x: (scale?.spawn_x ?? 2) + Math.floor(n / SPAWN_Y.length) * 1.5 * f,
+    y: SPAWN_Y[n % SPAWN_Y.length] * f,
     z: 0,
     w,
     d,

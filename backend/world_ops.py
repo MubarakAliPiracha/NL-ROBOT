@@ -65,8 +65,8 @@ def make_object(spec: Dict, world: List[Dict]) -> Dict:
     kind = str(spec.get("kind", "box")).lower()
     if kind not in KINDS:
         kind = "box"
-    w = _num(spec.get("w"), 1.0, 0.02, 60)
-    d = _num(spec.get("d"), 1.0, 0.02, 60)
+    w = _num(spec.get("w"), 1.0, 0.02, 150)
+    d = _num(spec.get("d"), 1.0, 0.02, 150)
     h = _num(spec.get("h"), 1.0, 0.02, 60)
     if kind == "sphere":
         d = h = w
@@ -76,8 +76,8 @@ def make_object(spec: Dict, world: List[Dict]) -> Dict:
         "id": _new_id(),
         "kind": kind,
         "name": _unique(world, str(spec.get("name") or kind.capitalize())[:40]),
-        "x": _num(spec.get("x"), 2.0, -80, 80),
-        "y": _num(spec.get("y"), 0.0, -80, 80),
+        "x": _num(spec.get("x"), 2.0, -300, 300),
+        "y": _num(spec.get("y"), 0.0, -300, 300),
         "z": _num(spec.get("z"), 0.0, 0, 40),
         "w": w, "d": d, "h": h,
         "yaw": _num(spec.get("yaw"), 0.0, -360, 360),

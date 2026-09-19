@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Grid, Edges } from '@react-three/drei';
+import { OrbitControls, Grid, Edges, Line, TransformControls } from '@react-three/drei';
+import type { Tool } from '@/components/viewport-toolbar';
 import * as THREE from 'three';
 import URDFLoader, { type URDFRobot } from 'urdf-loader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -170,6 +171,121 @@ function SensorRays({ latest }: { latest: MutableRefObject<RobotSnapshot> }) {
   );
 }
 
+/** Trail of where the robot has driven. Clears whenever `resetKey` changes (new request, reset, new robot). */
+function PathTrace({
+  latest,
+  resetKey,
+  planned,
+}: {
+  latest: MutableRefObject<RobotSnapshot>;
+  resetKey: string;
+  planned: [number, number][] | null;
+}) {
+  const points = useRef<[number, number, number][]>([]);
+  const dirty = useRef(false);
+  const lastPush = useRef(0);
+  const [shown, setShown] = useState<[number, number, number][]>([]);
+
+  // Cumulative arc length along the planned route, and how far along it the robot has got.
+  const cum = useMemo(() => {
+    if (!planned || planned.length < 2) return null;
+    const L = [0];
+    for (let i = 1; i < planned.length; i++) {
+      L.push(L[i - 1] + Math.hypot(planned[i][0] - planned[i - 1][0], planned[i][1] - planned[i - 1][1]));
+    }
+    return L;
+  }, [planned]);
+  const progress = useRef(0);
+  const lastSplit = useRef(-1);
+  const [split, setSplit] = useState(0);
+  useEffect(() => {
+    progress.current = 0;
+    lastSplit.current = -1;
+    setSplit(0);
+  }, [planned]);
+
+  useEffect(() => {
+    points.current = [];
+    dirty.current = false;
+    setShown([]);
+  }, [resetKey]);
+
+  useFrame(() => {
+    const s = latest.current;
+    const src = s.sensor ? s.sensor.origin : s.base?.pos; // footprint centre, so long robots trace their middle
+    if (!src) return;
+    if (planned && cum) {
+      // Where along the route is the robot? Project it onto the current and next segment; progress only moves forward.
+      let seg = 0;
+      while (seg < cum.length - 2 && cum[seg + 1] <= progress.current) seg++;
+      let best = progress.current;
+      let bestD = Infinity;
+      for (let j = seg; j <= Math.min(seg + 1, planned.length - 2); j++) {
+        const [ax, ay] = planned[j];
+        const [bx, by] = planned[j + 1];
+        const len = cum[j + 1] - cum[j];
+        if (len < 1e-6) continue;
+        const t = Math.max(0, Math.min(1, ((src[0] - ax) * (bx - ax) + (src[1] - ay) * (by - ay)) / (len * len)));
+        const d = Math.hypot(src[0] - (ax + t * (bx - ax)), src[1] - (ay + t * (by - ay)));
+        if (d < bestD) {
+          bestD = d;
+          best = cum[j] + t * len;
+        }
+      }
+      if (best > progress.current) progress.current = best;
+      if (Math.abs(progress.current - lastSplit.current) > 0.02) {
+        lastSplit.current = progress.current;
+        setSplit(progress.current);
+      }
+    }
+    const p: [number, number, number] = [src[0], src[1], 0.03];
+    const last = points.current[points.current.length - 1];
+    if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.05) {
+      points.current.push(p);
+      if (points.current.length > 5000) points.current.shift();
+      dirty.current = true;
+    }
+    const now = performance.now();
+    if (dirty.current && now - lastPush.current > 100) {
+      lastPush.current = now;
+      dirty.current = false;
+      setShown(points.current.slice());
+    }
+  });
+
+  // Google-Maps style: remaining route in strong blue, the part already driven in grey.
+  let done: [number, number, number][] = [];
+  let ahead: [number, number, number][] = [];
+  if (planned && cum) {
+    const p3 = (pt: [number, number]): [number, number, number] => [pt[0], pt[1], 0.02];
+    let k = 0;
+    while (k < cum.length - 2 && cum[k + 1] < split) k++;
+    const segLen = cum[k + 1] - cum[k] || 1;
+    const t = Math.max(0, Math.min(1, (split - cum[k]) / segLen));
+    const here: [number, number, number] = [
+      planned[k][0] + t * (planned[k + 1][0] - planned[k][0]),
+      planned[k][1] + t * (planned[k + 1][1] - planned[k][1]),
+      0.02,
+    ];
+    done = [...planned.filter((_, i) => cum[i] < split).map(p3), here];
+    ahead = [here, ...planned.filter((_, i) => cum[i] > split).map(p3)];
+  }
+  const end = planned && planned.length > 1 ? planned[planned.length - 1] : null;
+  return (
+    <>
+      {ahead.length > 1 && <Line points={ahead} color="#1a73e8" lineWidth={7} renderOrder={2} />}
+      {done.length > 1 && <Line points={done} color="#a9b4c6" lineWidth={7} renderOrder={3} />}
+      {!planned && shown.length > 1 && <Line points={shown} color="#a9b4c6" lineWidth={7} renderOrder={3} />}
+      {end && (
+        <mesh position={[end[0], end[1], 0.07]} renderOrder={4}>
+          <sphereGeometry args={[0.06, 16, 12]} />
+          <meshBasicMaterial color="#ea4335" />
+        </mesh>
+      )}
+    </>
+  );
+}
+
 function makeGeometry(o: WorldObject): THREE.BufferGeometry {
   switch (o.kind) {
     case 'box':
@@ -186,20 +302,30 @@ function makeGeometry(o: WorldObject): THREE.BufferGeometry {
   }
 }
 
+type Transform = Partial<Pick<WorldObject, 'x' | 'y' | 'z' | 'yaw'>>;
+
 function WorldShape({
   obj,
   selected,
+  tool,
   onDown,
+  onTransform,
   latest,
 }: {
   obj: WorldObject;
   latest: MutableRefObject<RobotSnapshot>;
   selected: boolean;
+  tool: Tool;
   onDown: (e: ThreeEvent<PointerEvent>, obj: WorldObject) => void;
+  onTransform: (id: string, patch: Transform) => void;
 }) {
   const geometry = useMemo(() => makeGeometry(obj), [obj.kind, obj.w, obj.d, obj.h]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => geometry.dispose(), [geometry]);
   const ref = useRef<THREE.Mesh>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   useFrame(() => {
     // Physics objects move on the backend; mirror their pose every frame.
     const pose = obj.dynamic ? latest.current.objects?.[obj.id] : undefined;
@@ -208,17 +334,37 @@ function WorldShape({
       ref.current.quaternion.set(pose[3], pose[4], pose[5], pose[6]);
     }
   });
+  const gizmo = selected && mounted && ref.current && (tool === 'move' || tool === 'rotate');
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
   return (
-    <mesh
-      ref={ref}
-      geometry={geometry}
-      position={[obj.x, obj.y, obj.z + obj.h / 2]}
-      rotation={[0, 0, (obj.yaw * Math.PI) / 180]}
-      onPointerDown={(e) => onDown(e, obj)}
-    >
-      <meshStandardMaterial color={obj.color} roughness={0.55} metalness={0.05} />
-      {selected && <Edges threshold={20} color="#ffb800" />}
-    </mesh>
+    <>
+      <mesh
+        ref={ref}
+        geometry={geometry}
+        position={[obj.x, obj.y, obj.z + obj.h / 2]}
+        rotation={[0, 0, (obj.yaw * Math.PI) / 180]}
+        onPointerDown={(e) => onDown(e, obj)}
+      >
+        <meshStandardMaterial color={obj.color} roughness={0.55} metalness={0.05} />
+        {selected && <Edges threshold={20} color="#ffb800" />}
+      </mesh>
+      {gizmo && (
+        <TransformControls
+          object={ref.current!}
+          mode={tool === 'move' ? 'translate' : 'rotate'}
+          translationSnap={0.05}
+          rotationSnap={Math.PI / 36}
+          showX={tool === 'move'}
+          showZ={tool === 'move'}
+          onObjectChange={() => {
+            const m = ref.current;
+            if (!m) return;
+            const yaw = ((THREE.MathUtils.radToDeg(m.rotation.z) + 540) % 360) - 180; // keep in -180..180
+            onTransform(obj.id, { x: r3(m.position.x), y: r3(m.position.y), z: Math.max(0, r3(m.position.z - obj.h / 2)), yaw: r3(yaw) });
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -270,9 +416,13 @@ function World({
   selectedId,
   onSelect,
   onMove,
+  onTransform,
+  tool,
   setDragging,
 }: {
   latest: MutableRefObject<RobotSnapshot>;
+  tool: Tool;
+  onTransform: (id: string, patch: Transform) => void;
   objects: WorldObject[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -288,14 +438,68 @@ function World({
           obj={o}
           latest={latest}
           selected={o.id === selectedId}
+          tool={tool}
+          onTransform={onTransform}
           onDown={(e, obj) => {
-            onSelect(obj.id);
-            startDrag(e, obj);
+            if (tool === 'select') {
+              onSelect(obj.id);
+              startDrag(e, obj);
+            } else if (tool === 'move' || tool === 'rotate') {
+              e.stopPropagation();
+              onSelect(obj.id); // the gizmo does the moving
+            }
+            // pan / orbit: shapes are inert so drags always move the camera
           }}
         />
       ))}
     </>
   );
+}
+
+/** Camera helpers: reset to the default view, and optionally keep following the robot. */
+function CameraRig({
+  latest,
+  viewKey,
+  follow,
+  k,
+  robotKey,
+}: {
+  latest: MutableRefObject<RobotSnapshot>;
+  viewKey: number;
+  follow: boolean;
+  k: number;
+  robotKey: string;
+}) {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update: () => void } | null;
+  const prev = useRef<THREE.Vector3 | null>(null);
+
+  useEffect(() => {
+    // Frame the robot: bigger robots get a proportionally farther camera. Runs on Fit view and whenever the robot changes.
+    if (!controls) return;
+    camera.position.set(1.2 + 2.2 * k, 0.3 + 2.5 * k, 4.6 * k);
+    controls.target.set(1.2 * k, 0.3, 0);
+    controls.update();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewKey, robotKey, !!controls]);
+
+  useFrame(() => {
+    if (!follow || !controls) {
+      prev.current = null;
+      return;
+    }
+    const s = latest.current;
+    const src = s.sensor ? s.sensor.origin : s.base?.pos;
+    if (!src) return;
+    const cur = new THREE.Vector3(src[0], 0, -src[1]); // Z-up world -> Y-up scene
+    if (prev.current) {
+      const d = cur.clone().sub(prev.current);
+      camera.position.add(d);
+      controls.target.add(d);
+    }
+    prev.current = cur;
+  });
+  return null;
 }
 
 export function SceneViewport({
@@ -305,9 +509,23 @@ export function SceneViewport({
   selectedId,
   onSelect,
   onMove,
+  traceKey,
+  plannedPath,
+  tool,
+  follow,
+  viewKey,
+  cameraScale,
+  onTransform,
 }: {
+  cameraScale: number;
+  tool: Tool;
+  follow: boolean;
+  viewKey: number;
+  onTransform: (id: string, patch: Transform) => void;
   info: RobotInfo | null;
   latest: MutableRefObject<RobotSnapshot>;
+  traceKey: number;
+  plannedPath: [number, number][] | null;
   objects: WorldObject[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -352,10 +570,32 @@ export function SceneViewport({
           <axesHelper args={[0.6]} />
           {info && <RobotModel key={key} info={info} latest={latest} robotColor={colors.robot} onError={setError} />}
           {info?.mobile && <SensorRays latest={latest} />}
-          <World latest={latest} objects={objects} selectedId={selectedId} onSelect={onSelect} onMove={onMove} setDragging={setDragging} />
+          {info?.mobile && <PathTrace latest={latest} resetKey={`${traceKey}-${info.source}`} planned={plannedPath} />}
+          <World
+            latest={latest}
+            objects={objects}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            onMove={onMove}
+            onTransform={onTransform}
+            tool={tool}
+            setDragging={setDragging}
+          />
         </group>
 
-        <OrbitControls makeDefault enabled={!dragging} target={[1.2, 0.3, 0]} maxPolarAngle={Math.PI / 2.02} />
+        <CameraRig latest={latest} viewKey={viewKey} follow={follow} k={cameraScale} robotKey={key} />
+        <OrbitControls
+          makeDefault
+          enabled={!dragging}
+          target={[1.2, 0.3, 0]}
+          maxPolarAngle={Math.PI / 2.02}
+          maxDistance={400}
+          mouseButtons={{
+            LEFT: tool === 'pan' ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN,
+          }}
+        />
       </Canvas>
       {error && (
         <div className="absolute bottom-4 left-1/2 max-w-md -translate-x-1/2 rounded-xl bg-danger px-4 py-2 text-sm text-white shadow-lift">

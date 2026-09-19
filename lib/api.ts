@@ -17,6 +17,7 @@ export type RobotInfo = {
   joints: JointInfo[];
   mobile: boolean;
   wheels: string[];
+  scale?: { unit_m: number; spawn_x: number; factor: number };
   warnings?: string[];
 };
 
@@ -32,6 +33,7 @@ export type CommandResult = {
   warnings: string[];
   llm: { provider: string | null; model: string | null };
   llm_error: string | null;
+  path?: [number, number][];
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
