@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Grid, Edges, Line, TransformControls } from '@react-three/drei';
+import { OrbitControls, Grid, Edges, Line, TransformControls, ContactShadows } from '@react-three/drei';
 import type { Tool } from '@/components/viewport-toolbar';
 import * as THREE from 'three';
 import URDFLoader, { type URDFRobot } from 'urdf-loader';
@@ -151,7 +151,9 @@ function SensorRays({ latest }: { latest: MutableRefObject<RobotSnapshot> }) {
       positions[o + 3] = s.origin[0] + d * Math.cos(s.yaw + a);
       positions[o + 4] = s.origin[1] + d * Math.sin(s.yaw + a);
       positions[o + 5] = s.origin[2];
-      const [r, g, b] = hit ? [1, 0.25, 0.2] : [0.25, 0.55, 1];
+      // Hits carry information -> amber and loud. Clear rays are context -> nearly
+      // invisible, so the fan stops shouting over the robot.
+      const [r, g, b] = hit ? [1.0, 0.62, 0.08] : [0.09, 0.16, 0.24];
       for (let k = 0; k < 2; k++) {
         colors[o + k * 3] = r;
         colors[o + k * 3 + 1] = g;
@@ -165,8 +167,23 @@ function SensorRays({ latest }: { latest: MutableRefObject<RobotSnapshot> }) {
 
   return (
     <lineSegments geometry={geometry} frustumCulled={false}>
-      <lineBasicMaterial vertexColors transparent opacity={0.75} />
+      <lineBasicMaterial vertexColors transparent opacity={0.9} />
     </lineSegments>
+  );
+}
+
+/** Soft emissive ring under the robot so it reads as the focus object. */
+function FocusRing({ latest, k }: { latest: MutableRefObject<RobotSnapshot>; k: number }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const base = latest.current.base;
+    if (ref.current && base) ref.current.position.set(base.pos[0], base.pos[1], 0.008);
+  });
+  return (
+    <mesh ref={ref} renderOrder={1}>
+      <ringGeometry args={[0.3 * k, 0.4 * k, 48]} />
+      <meshBasicMaterial color="#3ecf8e" transparent opacity={0.35} depthWrite={false} />
+    </mesh>
   );
 }
 
@@ -476,8 +493,8 @@ function CameraRig({
   useEffect(() => {
     // Frame the robot: bigger robots get a proportionally farther camera. Runs on Fit view and whenever the robot changes.
     if (!controls) return;
-    camera.position.set(1.2 + 2.2 * k, 0.3 + 2.5 * k, 4.6 * k);
-    controls.target.set(1.2 * k, 0.3, 0);
+    camera.position.set(1.0 + 1.8 * k, 0.5 + 2.4 * k, 3.4 * k);
+    controls.target.set(1.0 * k, 0.55, 0);
     controls.update();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewKey, robotKey, !!controls]);
@@ -540,7 +557,7 @@ export function SceneViewport({
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [3.4, 2.8, 4.6], fov: 45 }}
+        camera={{ position: [2.8, 3.3, 3.6], fov: 45 }}
         onPointerMissed={() => onSelect(null)}
       >
         <color attach="background" args={[colors.bg]} />
@@ -555,18 +572,21 @@ export function SceneViewport({
           sectionColor={colors.section}
           cellThickness={0.6}
           sectionThickness={1.2}
-          fadeDistance={22}
+          fadeDistance={13}
+          fadeStrength={2.5}
           infiniteGrid
         />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]}>
-          <planeGeometry args={[60, 60]} />
+          <planeGeometry args={[36, 36]} />
           <meshBasicMaterial color={colors.floor} toneMapped={false} />
         </mesh>
+        <ContactShadows position={[0, 0.012, 0]} opacity={0.45} scale={14} blur={2.4} far={3.5} />
 
         {/* URDF / PyBullet are Z-up; three.js is Y-up. Everything physical lives in this rotated group. */}
         <group rotation={[-Math.PI / 2, 0, 0]}>
           <axesHelper args={[0.6]} />
           {info && <RobotModel key={key} info={info} latest={latest} robotColor={colors.robot} onError={setError} />}
+          {info?.mobile && <FocusRing latest={latest} k={cameraScale} />}
           {info?.mobile && <SensorRays latest={latest} />}
           {info?.mobile && <PathTrace latest={latest} resetKey={`${traceKey}-${info.source}`} planned={plannedPath} />}
           <World

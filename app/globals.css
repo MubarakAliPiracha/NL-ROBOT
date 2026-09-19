@@ -88,3 +88,24 @@ textarea {
     opacity: 0;
   }
 }
+
+/* Prose reads badly in mono; values, names and commands stay mono. */
+.font-prose {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Plan checklist rows arrive in sequence - the one orchestrated moment. */
+.plan-row {
+  animation: row-in 0.25s ease-out both;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

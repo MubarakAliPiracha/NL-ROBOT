@@ -28,6 +28,7 @@ import { api, type CommandResult, type Health, type RobotInfo } from '@/lib/api'
 import { useSims } from '@/lib/sims';
 import { useRobotSocket } from '@/lib/use-robot-socket';
 import { ConsolePanel } from '@/components/console-panel';
+import { PlanSteps, type PlanStep } from '@/components/plan-steps';
 import type { WorldObject } from '@/lib/world';
 
 type Msg = {
@@ -66,6 +67,7 @@ export function SimWorkspace() {
   const [health, setHealth] = useState<Health | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [activePlan, setActivePlan] = useState<PlanStep[]>([]);
   const [dragging, setDragging] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [mapMessages, setMapMessages] = useState<Msg[]>([]);
@@ -173,18 +175,6 @@ export function SimWorkspace() {
     [adoptRobot],
   );
 
-  const loadBuiltin = async (source: 'default' | 'rover') => {
-    setBusy(true);
-    setNotice(null);
-    try {
-      adoptRobot(await api.selectRobot(source));
-    } catch (e) {
-      setNotice((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const reset = async () => {
     try {
       setRobot(await api.resetRobot());
@@ -213,7 +203,10 @@ export function SimWorkspace() {
         setObjects(result.world);
         setSelectedId(null);
       }
-      if (mode === 'robot') setPlannedPath(result.path && result.path.length > 1 ? result.path : null);
+      if (mode === 'robot') {
+        setPlannedPath(result.path && result.path.length > 1 ? result.path : null);
+        if (result.plan?.length) setActivePlan(result.plan as unknown as PlanStep[]);
+      }
       setList((m) => m.map((x) => (x.id === msgId ? { ...x, status: 'ok', result } : x)));
       update(id, {});
     } catch (e) {
@@ -320,11 +313,11 @@ export function SimWorkspace() {
           <div
             role="status"
             className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-bold ring-1 transition ${
-              running ? 'bg-accent text-white ring-white/40' : 'bg-white/15 text-white/90 ring-white/25'
+              running ? 'bg-accent text-white ring-white/40' : busy ? 'bg-warn/80 text-black ring-warn/60' : 'bg-white/15 text-white/90 ring-white/25'
             }`}
           >
-            <span className={`h-2.5 w-2.5 rounded-full ${running ? 'animate-pulse bg-white' : 'bg-white/50'}`} />
-            {running ? 'Running' : 'Idle'}
+            <span className={`h-2.5 w-2.5 rounded-full ${running || busy ? 'animate-pulse bg-white' : 'bg-white/50'}`} />
+            {running ? 'Running' : busy ? 'Planning' : 'Idle'}
           </div>
           <button
             onClick={() => void api.stop().catch((e: Error) => setNotice(e.message))}
@@ -418,7 +411,7 @@ export function SimWorkspace() {
                   <button
                     onClick={() => fileInput.current?.click()}
                     disabled={busy || !health}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white shadow transition hover:brightness-110 disabled:opacity-50"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-fg transition hover:border-brand hover:text-brand disabled:opacity-50"
                   >
                     {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
                     Upload URDF / Xacro / ZIP
@@ -431,30 +424,43 @@ export function SimWorkspace() {
                     <FolderUp size={15} />
                     Upload a robot folder
                   </button>
-                  <p className="mt-2 text-xs text-muted">
+                  <p className="font-prose mt-2 text-xs text-muted">
                     Accepts .urdf or .xacro files, or a .zip / folder that also holds the meshes. You can drop files onto the
                     viewport too.
                   </p>
                 </section>
 
                 <section>
-                  <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-brand">Built-in robots</h2>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => void loadBuiltin('rover')}
-                      disabled={busy || !health}
-                      className="rounded-xl border border-line bg-surfaceAlt px-3 py-2 text-sm font-semibold transition hover:border-brand disabled:opacity-50"
-                    >
-                      Sample rover
-                    </button>
-                    <button
-                      onClick={() => void loadBuiltin('default')}
-                      disabled={busy || !health}
-                      className="rounded-xl border border-line bg-surfaceAlt px-3 py-2 text-sm font-semibold transition hover:border-brand disabled:opacity-50"
-                    >
-                      KUKA arm
-                    </button>
+                  <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-brand">Active robot</h2>
+                  <div className="rounded-xl border border-brand/50 bg-brand/5 px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2 font-semibold text-brand">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+                      TurtleBot3 + OpenMANIPULATOR-X
+                    </div>
+                    <p className="font-prose mt-1 text-xs text-muted">
+                      Imported from the official ROS 2 packages; lidar, IMU and camera simulated in Gazebo.
+                    </p>
                   </div>
+                  {robot && (
+                    <details className="mt-2 rounded-xl border border-line bg-surfaceAlt px-3 py-2 text-xs">
+                      <summary className="cursor-pointer font-semibold text-fg">
+                        Kinematic chain - {robot.joints.filter((j) => j.type !== 'fixed').length} joints
+                      </summary>
+                      <div className="mt-2 space-y-1">
+                        {robot.joints
+                          .filter((j) => j.type !== 'fixed')
+                          .map((j) => (
+                            <div key={j.name} className="flex items-center justify-between gap-2">
+                              <span className="truncate text-muted">{j.name}</span>
+                              <span className="tabular-nums text-fg">
+                                {(snapshot.joints[j.name] ?? 0).toFixed(2)}
+                                <span className="ml-1 text-muted">{j.type === 'prismatic' ? 'm' : 'rad'}</span>
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </details>
+                  )}
                 </section>
 
                 {mobile ? (
@@ -598,10 +604,11 @@ export function SimWorkspace() {
           )}
 
           <div className={panel === 'console' ? 'hidden' : 'min-h-0 flex-1 space-y-3 overflow-y-auto p-4'}>
+            {panel === 'robot' && activePlan.length > 0 && <PlanSteps steps={activePlan} snapshot={snapshot} />}
             {!list.length && (
               <div className="space-y-2">
                 <p className="text-sm text-muted">
-                  {panel === 'map' ? 'Describe a map and I will build it out of shapes:' : 'Try one of these:'}
+                  {panel === 'map' ? 'Describe a map and I will build it out of shapes:' : 'Type what the robot should do - it runs on real ROS 2 topics. Or start with:'}
                 </p>
                 {(panel === 'map' ? MAP_SUGGESTIONS : suggestions).map((s) => (
                   <button
