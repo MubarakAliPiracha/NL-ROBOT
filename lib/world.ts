@@ -31,13 +31,13 @@ export type ShapeDef = {
 };
 
 export const SHAPES: ShapeDef[] = [
-  { kind: 'box', label: 'Box', color: '#e5403b', size: [1, 1, 1], dims: 'wdh' },
-  { kind: 'cylinder', label: 'Cylinder', color: '#f28c1b', size: [1, 1, 1], dims: 'round' },
-  { kind: 'sphere', label: 'Sphere', color: '#2f8de4', size: [1, 1, 1], dims: 'sphere' },
-  { kind: 'cone', label: 'Cone', color: '#8e44c2', size: [1, 1, 1], dims: 'round' },
-  { kind: 'pyramid', label: 'Pyramid', color: '#f2c21b', size: [1, 1, 1], dims: 'wdh' },
-  { kind: 'wedge', label: 'Ramp', color: '#3aa655', size: [1.5, 1, 0.6], dims: 'wdh' },
-  { kind: 'box', label: 'Wall', color: '#ff8a5c', size: [0.2, 3, 1], dims: 'wdh', preset: 'wall' },
+  { kind: 'box', label: 'Box', color: '#64748b', size: [1, 1, 1], dims: 'wdh' },
+  { kind: 'cylinder', label: 'Cylinder', color: '#7d8b99', size: [1, 1, 1], dims: 'round' },
+  { kind: 'sphere', label: 'Sphere', color: '#566a7f', size: [1, 1, 1], dims: 'sphere' },
+  { kind: 'cone', label: 'Cone', color: '#6e7f8d', size: [1, 1, 1], dims: 'round' },
+  { kind: 'pyramid', label: 'Pyramid', color: '#8494a3', size: [1, 1, 1], dims: 'wdh' },
+  { kind: 'wedge', label: 'Ramp', color: '#5b6c7d', size: [1.5, 1, 0.6], dims: 'wdh' },
+  { kind: 'box', label: 'Wall', color: '#8a94a6', size: [0.2, 3, 1], dims: 'wdh', preset: 'wall' },
 ];
 
 export const dimMode = (kind: ShapeKind): DimMode =>

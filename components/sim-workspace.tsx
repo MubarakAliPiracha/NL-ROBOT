@@ -320,7 +320,7 @@ export function SimWorkspace() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 shrink items-center gap-2">
           <div
             role="status"
             className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-bold ring-1 transition ${
@@ -542,7 +542,7 @@ export function SimWorkspace() {
 
         {/* Center: viewport */}
         <main
-          className="relative order-1 h-[46vh] min-h-0 lg:order-2 lg:h-auto"
+          className="relative order-1 h-[46vh] min-h-0 min-w-0 overflow-hidden lg:order-2 lg:h-auto"
           onDragOver={(e) => {
             e.preventDefault();
             setDragging(true);

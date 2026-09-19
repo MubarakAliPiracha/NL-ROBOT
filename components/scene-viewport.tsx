@@ -175,6 +175,43 @@ function SensorRays({ latest }: { latest: MutableRefObject<RobotSnapshot> }) {
   );
 }
 
+/** CAD-style grid: cell size steps with camera distance so lines stay legible
+ *  from tabletop zoom to full-scene overview. State updates only on tier change --
+ *  never per frame. */
+const GRID_TIERS = [
+  { upTo: 12, cell: 0.25 },
+  { upTo: 45, cell: 1 },
+  { upTo: 160, cell: 5 },
+  { upTo: Infinity, cell: 20 },
+];
+
+function AdaptiveGrid({ cellColor, sectionColor }: { cellColor: string; sectionColor: string }) {
+  const [tier, setTier] = useState(1);
+  const current = useRef(1);
+  useFrame(({ camera }) => {
+    const d = camera.position.length();
+    const next = GRID_TIERS.findIndex((g) => d <= g.upTo);
+    if (next !== current.current) {
+      current.current = next;
+      setTier(next);
+    }
+  });
+  const cell = GRID_TIERS[tier].cell;
+  return (
+    <Grid
+      cellSize={cell}
+      sectionSize={cell * 5}
+      cellColor={cellColor}
+      sectionColor={sectionColor}
+      cellThickness={0.5}
+      sectionThickness={1.2}
+      fadeDistance={Math.max(100, cell * 30)}
+      fadeStrength={1}
+      infiniteGrid
+    />
+  );
+}
+
 /** Soft emissive ring under the robot so it reads as the focus object. */
 function FocusRing({ latest, k }: { latest: MutableRefObject<RobotSnapshot>; k: number }) {
   const ref = useRef<THREE.Mesh>(null);
@@ -569,23 +606,12 @@ export function SceneViewport({
         <ambientLight intensity={1.1} />
         <hemisphereLight args={['#ffffff', colors.floor, 0.7]} />
         <directionalLight position={[4, 7, 5]} intensity={2} castShadow />
-        <Grid
-          args={[30, 30]}
-          cellSize={0.25}
-          sectionSize={1}
-          cellColor={colors.cell}
-          sectionColor={colors.section}
-          cellThickness={0.6}
-          sectionThickness={1.2}
-          fadeDistance={13}
-          fadeStrength={2.5}
-          infiniteGrid
-        />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]}>
-          <planeGeometry args={[36, 36]} />
+        <AdaptiveGrid cellColor={colors.cell} sectionColor={colors.section} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]}>
+          <planeGeometry args={[400, 400]} />
           <meshBasicMaterial color={colors.floor} toneMapped={false} />
         </mesh>
-        <ContactShadows position={[0, 0.012, 0]} opacity={0.45} scale={14} blur={2.4} far={3.5} />
+        <ContactShadows position={[0, 0.012, 0]} opacity={0.45} scale={20} blur={2.4} far={3.5} />
 
         {/* URDF / PyBullet are Z-up; three.js is Y-up. Everything physical lives in this rotated group. */}
         <group rotation={[-Math.PI / 2, 0, 0]}>
