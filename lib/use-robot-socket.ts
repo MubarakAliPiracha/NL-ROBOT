@@ -13,6 +13,14 @@ export type SensorScan = {
   front: number;
 };
 
+export type Telemetry = {
+  odom?: { x: number; y: number; yaw_deg: number; v: number; w: number };
+  imu?: { ax: number; ay: number; az: number; gx: number; gy: number; gz: number };
+  lidar?: { front: number | null; min: number | null; rays: number; range_max: number };
+};
+
+export type RosLogEntry = { t: number; kind: string; cmd: string };
+
 export type RobotSnapshot = {
   joints: Record<string, number>;
   queued: number;
@@ -20,6 +28,8 @@ export type RobotSnapshot = {
   base?: { pos: [number, number, number]; quat: [number, number, number, number] };
   sensor?: SensorScan;
   objects?: Record<string, number[]>;
+  telemetry?: Telemetry;
+  roslog?: RosLogEntry[];
 };
 
 /**

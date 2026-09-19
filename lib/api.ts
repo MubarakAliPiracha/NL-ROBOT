@@ -9,6 +9,16 @@ export type JointInfo = {
   upper_limit: number | null;
 };
 
+export type SensorInfo = {
+  name: string;
+  type: string;
+  link: string;
+  topic: string;
+  rate_hz?: number;
+  range_m?: [number, number];
+  samples?: number;
+};
+
 export type RobotInfo = {
   source: string;
   name: string;
@@ -17,6 +27,7 @@ export type RobotInfo = {
   joints: JointInfo[];
   mobile: boolean;
   wheels: string[];
+  sensors?: SensorInfo[];
   scale?: { unit_m: number; spawn_x: number; factor: number };
   warnings?: string[];
 };

@@ -18,6 +18,7 @@ import {
   Trash2,
   Upload,
   Wand2,
+  Terminal,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { SceneViewport } from '@/components/scene-viewport';
@@ -26,6 +27,7 @@ import { ViewportToolbar, type Tool } from '@/components/viewport-toolbar';
 import { api, type CommandResult, type Health, type RobotInfo } from '@/lib/api';
 import { useSims } from '@/lib/sims';
 import { useRobotSocket } from '@/lib/use-robot-socket';
+import { ConsolePanel } from '@/components/console-panel';
 import type { WorldObject } from '@/lib/world';
 
 type Msg = {
@@ -67,7 +69,7 @@ export function SimWorkspace() {
   const [dragging, setDragging] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [mapMessages, setMapMessages] = useState<Msg[]>([]);
-  const [panel, setPanel] = useState<'robot' | 'map'>('robot');
+  const [panel, setPanel] = useState<'robot' | 'map' | 'console'>('robot');
   const [traceKey, setTraceKey] = useState(0); // bump to clear the robot's path trail
   const [tool, setTool] = useState<Tool>('select');
   const [follow, setFollow] = useState(false);
@@ -194,7 +196,7 @@ export function SimWorkspace() {
     }
   };
 
-  const send = async (text: string, mode: 'robot' | 'map' = panel) => {
+  const send = async (text: string, mode: 'robot' | 'map' = panel === 'map' ? 'map' : 'robot') => {
     const trimmed = text.trim();
     if (!trimmed) return;
     const setList = mode === 'map' ? setMapMessages : setMessages;
@@ -495,7 +497,7 @@ export function SimWorkspace() {
                             </div>
                             <div className="h-2 overflow-hidden rounded-full bg-line">
                               <div
-                                className="h-full rounded-full bg-gradient-to-r from-brand to-accent"
+                                className="h-full bg-brand"
                                 style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
                               />
                             </div>
@@ -565,11 +567,12 @@ export function SimWorkspace() {
 
         {/* Right: commands */}
         <aside className="order-3 flex min-h-0 flex-col border-line bg-surface lg:border-l">
-          <div className="grid shrink-0 grid-cols-2 border-b border-line">
+          <div className="grid shrink-0 grid-cols-3 border-b border-line">
             {(
               [
                 ['robot', 'Tell the robot', Wand2],
                 ['map', 'Build a map', MapIcon],
+                ['console', 'Console', Terminal],
               ] as const
             ).map(([key, label, Icon]) => (
               <button
@@ -588,7 +591,13 @@ export function SimWorkspace() {
             ))}
           </div>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+          {panel === 'console' && (
+            <div className="min-h-0 flex-1 overflow-hidden p-3">
+              <ConsolePanel snapshot={snapshot} robot={robot} />
+            </div>
+          )}
+
+          <div className={panel === 'console' ? 'hidden' : 'min-h-0 flex-1 space-y-3 overflow-y-auto p-4'}>
             {!list.length && (
               <div className="space-y-2">
                 <p className="text-sm text-muted">
@@ -660,7 +669,7 @@ export function SimWorkspace() {
             <div ref={logEnd} />
           </div>
 
-          <form onSubmit={onSubmit} className="border-t border-line p-3">
+          <form onSubmit={onSubmit} className={panel === 'console' ? 'hidden' : 'border-t border-line p-3'}>
             {panel === 'map' && objects.length > 0 && (
               <button
                 type="button"

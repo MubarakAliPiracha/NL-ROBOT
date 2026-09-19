@@ -6,12 +6,7 @@ import { Bot, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { useSims } from '@/lib/sims';
 
-const thumbGradients = [
-  'from-sky-400 to-blue-600',
-  'from-fuchsia-500 to-violet-600',
-  'from-emerald-400 to-teal-600',
-  'from-orange-400 to-rose-500',
-];
+
 
 function timeAgo(ts: number) {
   const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
@@ -34,7 +29,7 @@ export default function HomePage() {
         <div className="flex items-center gap-3">
           <button
             onClick={createAndOpen}
-            className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-brand shadow transition hover:scale-[1.03] hover:shadow-lg"
+            className="flex items-center gap-2 border border-brand/60 bg-transparent px-4 py-2 text-sm font-bold text-brand transition hover:bg-brand/10"
           >
             <Plus size={18} strokeWidth={3} />
             Create
@@ -43,20 +38,21 @@ export default function HomePage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-5 py-8">
-        <section className="hero-gradient relative overflow-hidden rounded-3xl p-8 text-white shadow-lift sm:p-12">
-          <Sparkles className="absolute -right-4 -top-4 opacity-20" size={180} />
-          <h1 className="max-w-xl text-3xl font-extrabold leading-tight sm:text-4xl">
-            Tell a robot what to do. Watch it happen.
+        <section className="hero-gradient relative overflow-hidden p-8 sm:p-10">
+          <p className="text-xs text-muted">nl-robot @ ros2-humble : gazebo-fortress</p>
+          <h1 className="cursor-blink mt-3 max-w-xl text-2xl font-bold leading-tight text-fg sm:text-3xl">
+            $ tell a robot what to do
           </h1>
-          <p className="mt-3 max-w-xl text-white/85">
-            Upload a URDF, describe a motion in plain English, and simulate it with real physics.
+          <p className="mt-3 max-w-xl text-muted">
+            Upload a URDF, describe a motion in plain English, and it runs on real ROS 2
+            interfaces: /cmd_vel, FollowJointTrajectory, /scan.
           </p>
           <button
             onClick={createAndOpen}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-bold text-brand shadow-lg transition hover:scale-[1.03]"
+            className="mt-6 inline-flex items-center gap-2 border border-brand bg-brand/10 px-5 py-2.5 text-sm font-bold text-brand transition hover:bg-brand/20"
           >
-            <Plus size={20} strokeWidth={3} />
-            Create new simulation
+            <Plus size={16} strokeWidth={3} />
+            create new simulation
           </button>
         </section>
 
@@ -76,16 +72,14 @@ export default function HomePage() {
             </button>
 
             {ready &&
-              sims.map((sim, i) => (
+              sims.map((sim) => (
                 <div
                   key={sim.id}
                   className="group relative overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition hover:-translate-y-0.5 hover:shadow-lift"
                 >
                   <Link href={`/sim/${sim.id}`} className="block">
-                    <div
-                      className={`flex h-36 items-center justify-center bg-gradient-to-br ${thumbGradients[i % thumbGradients.length]}`}
-                    >
-                      <Bot size={56} className="text-white/90" />
+                    <div className="flex h-36 items-center justify-center border-b border-line bg-surface-alt">
+                      <Bot size={48} className="text-brand/70" />
                     </div>
                     <div className="p-4">
                       <div className="truncate font-semibold text-fg">{sim.name}</div>
