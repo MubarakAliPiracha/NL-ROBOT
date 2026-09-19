@@ -109,3 +109,24 @@ textarea {
     transform: translateX(0);
   }
 }
+
+/* Keyboard navigation: one visible focus treatment for every interactive element,
+   including the older buttons that never got per-component focus classes. */
+:focus-visible {
+  outline: 1px solid rgb(var(--brand));
+  outline-offset: 2px;
+}
+
+/* Motion sensitivity: kill decorative animation everywhere at once - the blinking
+   cursor, plan-row entrances, pulsing status dots, and hover transitions. The 3D
+   scene itself is content, not decoration, and framer-motion components already
+   check useReducedMotion() on their own. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
