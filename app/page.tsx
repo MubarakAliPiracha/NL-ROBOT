@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bot, Plus, Trash2, Github, Terminal, ArrowUp } from 'lucide-react';
 import MinimalistDock, { type DockItem } from '@/components/ui/minimal-dock';
+import { SplashScreen } from '@/components/ui/splash-screen';
 import { Logo } from '@/components/logo';
 import { useSims } from '@/lib/sims';
 
@@ -55,6 +56,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-app">
+      <SplashScreen />
       <header className="topbar sticky top-0 z-20 flex h-16 items-center justify-between px-5 shadow-md">
         <Logo />
         <div className="flex items-center gap-3">
