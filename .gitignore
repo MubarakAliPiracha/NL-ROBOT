@@ -9,3 +9,4 @@ tsconfig.tsbuildinfo
 # regenerated at container boot by import_robot.py
 sim/models/tb3/
 sim/models/upload_*/
+sim/config/upload_*_controllers.yaml
