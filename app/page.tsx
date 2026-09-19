@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Plus, Trash2, Sparkles } from 'lucide-react';
+import { Bot, Plus, Trash2, Github, Terminal, ArrowUp } from 'lucide-react';
+import MinimalistDock, { type DockItem } from '@/components/ui/minimal-dock';
 import { Logo } from '@/components/logo';
 import { useSims } from '@/lib/sims';
 
@@ -21,6 +22,36 @@ export default function HomePage() {
   const { sims, ready, create, remove } = useSims();
 
   const createAndOpen = () => router.push(`/sim/${create().id}`);
+
+  // Bottom dock: the page's primary navigation. Items act on real app state.
+  const latest = [...sims].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  const dockItems: DockItem[] = [
+    {
+      id: 'top',
+      icon: <ArrowUp size={20} />,
+      label: 'Back to top',
+      onClick: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+    },
+    { id: 'new', icon: <Plus size={20} />, label: 'New simulation', onClick: createAndOpen },
+    {
+      id: 'latest',
+      icon: <Bot size={20} />,
+      label: latest ? `Open "${latest.name}"` : 'No simulations yet',
+      onClick: latest ? () => router.push(`/sim/${latest.id}`) : undefined,
+    },
+    {
+      id: 'console',
+      icon: <Terminal size={20} />,
+      label: latest ? 'Latest sim console' : 'Console (create a sim first)',
+      onClick: latest ? () => router.push(`/sim/${latest.id}`) : undefined,
+    },
+    {
+      id: 'github',
+      icon: <Github size={20} />,
+      label: 'Source on GitHub',
+      onClick: () => window.open('https://github.com/007Aurick/NL-Robot-Sim', '_blank'),
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-app">
@@ -99,6 +130,10 @@ export default function HomePage() {
           </div>
         </section>
       </main>
+
+      <div className="fixed bottom-5 left-1/2 z-30 -translate-x-1/2">
+        <MinimalistDock items={dockItems} />
+      </div>
     </div>
   );
 }
