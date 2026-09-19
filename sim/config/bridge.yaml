@@ -1,0 +1,44 @@
+# Humble's ros_gz_bridge uses ignition.msgs.* type strings, NOT gz.msgs.*.
+# Services cannot be declared here (topics only) - they go on the CLI.
+- ros_topic_name: "/cmd_vel"
+  gz_topic_name: "/model/nlbot/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "ignition.msgs.Twist"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/odom"
+  gz_topic_name: "/model/nlbot/odometry"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "ignition.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/gz_poses"
+  gz_topic_name: "/world/nlworld/dynamic_pose/info"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "ignition.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+# --- real Gazebo sensors from the imported TurtleBot3 ---
+- ros_topic_name: "/gz_scan"
+  gz_topic_name: "/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "ignition.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/imu"
+  gz_topic_name: "/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "ignition.msgs.IMU"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/image_raw"
+  gz_topic_name: "/camera"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "ignition.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/camera_info"
+  gz_topic_name: "/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "ignition.msgs.CameraInfo"
+  direction: GZ_TO_ROS

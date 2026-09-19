@@ -1,0 +1,25 @@
+services:
+  sim:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: nlrobot-sim:humble
+    ports: ["8000:8000"]
+    # env_file injects .env straight into the container. Do NOT use
+    # `environment: KEY: ${KEY}` for secrets here: that is host-shell substitution, and an
+    # exported shell variable silently overrides the .env file, so you end up running a
+    # different key than the one in the file you just edited.
+    env_file:
+      - .env
+    environment:
+      ROS_DOMAIN_ID: "42"
+      ROS_LOCALHOST_ONLY: "1"
+      IGN_GAZEBO_RESOURCE_PATH: /sim/models:/sim/worlds
+      # Gazebo cannot find ros2_control's system plugin without this.
+      IGN_GAZEBO_SYSTEM_PLUGIN_PATH: /opt/ros/humble/lib
+      NLROBOT_WORLD: nlworld
+    volumes:
+      - ./bridge:/app/bridge
+      - ./sim:/sim
+    shm_size: "1gb"
+    stop_grace_period: 5s

@@ -5,7 +5,7 @@ import random
 import string
 from typing import Dict, List, Tuple
 
-from world import KINDS
+from sdf import KINDS  # world.py was PyBullet-only and is gone
 
 COLORS = {
     "red": "#e5403b", "orange": "#f28c1b", "yellow": "#f2c21b", "green": "#3aa655", "blue": "#2f8de4",

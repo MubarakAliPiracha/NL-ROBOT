@@ -1,0 +1,29 @@
+# ONE JointTrajectoryController spans the arm AND the gripper, so a single
+# FollowJointTrajectory client serves set_joints, move_ee and grasp.
+# allow_partial_joints_goal is load-bearing: it lets "close the gripper" be a
+# two-joint trajectory instead of a full six-joint one.
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+arm_controller:
+  ros__parameters:
+    joints:
+      - arm_yaw_joint
+      - arm_shoulder_joint
+      - arm_elbow_joint
+      - arm_wrist_joint
+      - gripper_left_joint
+      - gripper_right_joint
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+    allow_partial_joints_goal: true
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    constraints:
+      stopped_velocity_tolerance: 0.05
+      goal_time: 0.0

@@ -6,7 +6,31 @@ coerces numbers, drops steps the robot can't do, and reports what it dropped so 
 
 from typing import Dict, List, Optional, Tuple
 
-import poc_ollama_pybullet as poc
+
+
+def _nonfixed_names(joint_list: List[Dict], count: int) -> List[str]:
+    return [j["name"] for j in joint_list if j["type"] != "fixed"][:count]
+
+
+def _flap_params(joint_list: List[Dict], duration: float) -> Dict:
+    """Inlined from the PyBullet PoC -- it was the only reason this module imported it."""
+    arm = [
+        j["name"]
+        for j in joint_list
+        if any(k in j["name"].lower() for k in ("shoulder", "elbow", "wrist", "arm"))
+    ]
+    if not arm:
+        arm = _nonfixed_names(joint_list, 2)
+    return {"joint_names": arm, "amplitude_degrees": 25, "freq": 2.0, "duration": duration}
+
+
+def _circle_params(joint_list: List[Dict], duration: float) -> Dict:
+    return {
+        "joint_names": _nonfixed_names(joint_list, 2),
+        "amplitude_degrees": 15,
+        "freq": 1.0,
+        "duration": duration,
+    }
 
 MOBILE = {"drive", "turn", "go_to", "face", "avoid_obstacles"}
 ARM = {"set_joints", "move_ee", "flap", "circle"}
@@ -168,7 +192,7 @@ def normalize(steps: List[Dict], mobile: bool, joints: List[Dict], world: List[D
         elif skill in ("flap", "circle"):
             dur = _f(params.get("duration"), 3.0)
             names = [m for m in (_match_joint(n, joints) for n in params.get("joint_names") or []) if m]
-            base = poc._flap_params(joints, dur) if skill == "flap" else poc._circle_params(joints, dur)
+            base = _flap_params(joints, dur) if skill == "flap" else _circle_params(joints, dur)
             if names:
                 base["joint_names"] = names
             for k in ("amplitude_degrees", "freq"):

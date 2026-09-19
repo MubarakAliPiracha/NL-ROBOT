@@ -1,6 +1,11 @@
-node_modules
-.next
-*.tsbuildinfo
-backend/uploads/
+node_modules/
+.next/
 __pycache__/
-backend/.env
+*.pyc
+.env
+web/node_modules/
+web/.next/
+tsconfig.tsbuildinfo
+# regenerated at container boot by import_robot.py
+sim/models/tb3/
+sim/models/upload_*/
