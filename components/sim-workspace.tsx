@@ -267,9 +267,15 @@ export function SimWorkspace() {
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      const map: Record<string, Tool> = { v: 'select', m: 'move', r: 'rotate', h: 'pan', o: 'orbit' };
+      // Q/W/E for Figma/Blender muscle memory; V/M/R kept as aliases.
+      const map: Record<string, Tool> = {
+        q: 'select', w: 'move', e: 'rotate',
+        v: 'select', m: 'move', r: 'rotate',
+        h: 'pan', o: 'orbit',
+      };
       if (map[k]) setTool(map[k]);
       else if (k === 'f') setViewKey((n) => n + 1);
+      else if (k === '.') setFollow((prev) => !prev);
       else if (k === 'escape') {
         setSelectedId(null);
         setTool('select');
