@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Plus, Trash2, Github, Terminal, ArrowUp } from 'lucide-react';
+import { Plus, Trash2, Github, Terminal, ArrowUp } from 'lucide-react';
 import MinimalistDock, { type DockItem } from '@/components/ui/minimal-dock';
 import { SplashScreen } from '@/components/ui/splash-screen';
+import { NlLogoMark } from '@/components/ui/nl-logo';
 import { Logo } from '@/components/logo';
 import { useSims } from '@/lib/sims';
 
@@ -36,7 +37,7 @@ export default function HomePage() {
     { id: 'new', icon: <Plus size={20} />, label: 'New simulation', onClick: createAndOpen },
     {
       id: 'latest',
-      icon: <Bot size={20} />,
+      icon: <NlLogoMark className="h-5 w-5" />,
       label: latest ? `Open "${latest.name}"` : 'No simulations yet',
       onClick: latest ? () => router.push(`/sim/${latest.id}`) : undefined,
     },
@@ -91,7 +92,7 @@ export default function HomePage() {
 
         <section className="mt-10">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-brand">
-            <Bot size={20} />
+            <NlLogoMark className="h-5 w-5" />
             Your simulations
           </h2>
 
@@ -112,7 +113,7 @@ export default function HomePage() {
                 >
                   <Link href={`/sim/${sim.id}`} className="block">
                     <div className="flex h-36 items-center justify-center border-b border-line bg-surface-alt">
-                      <Bot size={48} className="text-brand/70" />
+                      <NlLogoMark className="h-12 w-12 text-brand/70" />
                     </div>
                     <div className="p-4">
                       <div className="truncate font-semibold text-fg">{sim.name}</div>
