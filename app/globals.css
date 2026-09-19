@@ -4,23 +4,6 @@
 
 /* Colour tokens as RGB channels so Tailwind can apply alpha (bg-brand/10 etc). */
 :root {
-  color-scheme: light;
-  --bg: 238 243 251;
-  --surface: 255 255 255;
-  --surface-alt: 233 240 251;
-  --line: 214 224 240;
-  --fg: 20 33 61;
-  --muted: 100 116 139;
-  --brand: 47 111 224;
-  --brand-deep: 30 78 178;
-  --accent: 22 184 108;
-  --pop: 255 122 46;
-  --warn: 245 166 35;
-  --danger: 236 72 82;
-  --shadow: 30 60 120;
-}
-
-:root.dark {
   color-scheme: dark;
   --bg: 11 18 36;
   --surface: 20 30 54;

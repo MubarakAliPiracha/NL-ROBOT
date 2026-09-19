@@ -12,7 +12,6 @@ import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { BACKEND_URL } from '@/lib/config';
-import { useTheme } from '@/lib/theme';
 import type { RobotInfo } from '@/lib/api';
 import type { RobotSnapshot } from '@/lib/use-robot-socket';
 import { hullPoints, type WorldObject } from '@/lib/world';
@@ -531,8 +530,7 @@ export function SceneViewport({
   onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number) => void;
 }) {
-  const { theme } = useTheme();
-  const colors = palette[theme];
+  const colors = palette.dark;
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const key = useMemo(() => info?.source ?? 'none', [info]);

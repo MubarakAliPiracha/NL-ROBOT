@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bot, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Logo } from '@/components/logo';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { useSims } from '@/lib/sims';
 
 const thumbGradients = [
@@ -33,7 +32,6 @@ export default function HomePage() {
       <header className="topbar sticky top-0 z-20 flex h-16 items-center justify-between px-5 shadow-md">
         <Logo />
         <div className="flex items-center gap-3">
-          <ThemeToggle />
           <button
             onClick={createAndOpen}
             className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-brand shadow transition hover:scale-[1.03] hover:shadow-lg"

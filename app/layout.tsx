@@ -1,6 +1,5 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { ThemeProvider, themeInitScript } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: 'NL-Robot',
@@ -10,11 +9,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        {children}
       </body>
     </html>
   );

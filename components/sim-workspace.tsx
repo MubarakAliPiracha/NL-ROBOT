@@ -22,7 +22,6 @@ import {
 import { Logo } from '@/components/logo';
 import { SceneViewport } from '@/components/scene-viewport';
 import { ShapesPanel } from '@/components/shapes-panel';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { ViewportToolbar, type Tool } from '@/components/viewport-toolbar';
 import { api, type CommandResult, type Health, type RobotInfo } from '@/lib/api';
 import { useSims } from '@/lib/sims';
@@ -340,7 +339,6 @@ export function SimWorkspace() {
             <RotateCcw size={15} />
             Reset
           </button>
-          <ThemeToggle />
         </div>
       </header>
 
