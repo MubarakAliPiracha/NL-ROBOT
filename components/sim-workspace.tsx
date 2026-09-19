@@ -386,17 +386,135 @@ export function SimWorkspace() {
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {tab === 'robot' ? (
-              <div className="space-y-5">
-                <section>
-                  <div className="rounded-xl border border-line bg-surfaceAlt p-3">
-                    <div className="truncate font-semibold">{robot?.name ?? 'Loading…'}</div>
-                    <div className="text-xs text-muted">
-                      {mobile
-                        ? `Wheeled robot · differential drive · ${robot?.wheels.length} wheels`
-                        : `Arm · ${movable.length} movable joints`}
-                    </div>
+              <div className="min-w-0 space-y-4">
+                {/* 1. Active robot - the hero card. Everything else is quieter. */}
+                <section className="rounded-xl border border-brand/50 bg-brand/5 p-3">
+                  <div className="flex items-center gap-2 font-semibold text-brand">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                    <span className="truncate">{robot?.name ?? 'Loading…'}</span>
                   </div>
+                  <p className="font-prose mt-0.5 text-xs text-muted">
+                    {mobile
+                      ? `Differential drive · ${robot?.wheels.length ?? 0} wheels · lidar, IMU and camera in Gazebo`
+                      : `Arm · ${movable.length} movable joints`}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setPanel('robot');
+                      setDraft('raise the arm 45 degrees');
+                    }}
+                    className="mt-2 w-full border border-line bg-surfaceAlt px-2.5 py-1.5 text-left text-xs transition hover:border-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+                  >
+                    <span className="text-brand">&rsaquo;</span> It listens &mdash; try{' '}
+                    <span className="text-brand">&quot;raise the arm 45 degrees&quot;</span> in the console
+                  </button>
+                </section>
 
+                {/* 2. Kinematic chain - open by default; the project is about this. */}
+                {robot && (
+                  <details open>
+                    <summary className="cursor-pointer list-none border-t border-line pt-3 text-xs font-bold uppercase tracking-widest text-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand">
+                      Kinematic chain &middot; {movable.filter((j) => !(robot.wheels ?? []).includes(j.name)).length} joints
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {movable
+                        .filter((j) => !(robot.wheels ?? []).includes(j.name))
+                        .map((j) => {
+                          const v = snapshot.joints[j.name] ?? 0;
+                          const bounded =
+                            j.type !== 'continuous' &&
+                            j.lower_limit != null &&
+                            j.upper_limit != null &&
+                            j.upper_limit > j.lower_limit;
+                          const pct = bounded
+                            ? ((v - j.lower_limit!) / (j.upper_limit! - j.lower_limit!)) * 100
+                            : 50;
+                          return (
+                            <div key={j.name} className="text-xs">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className="truncate font-medium">{j.name}</span>
+                                <span className="shrink-0 tabular-nums">
+                                  {v.toFixed(2)}
+                                  <span className="ml-0.5 text-muted">{j.type === 'prismatic' ? 'm' : 'rad'}</span>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-8 shrink-0 text-[10px] text-muted">{j.type.slice(0, 4)}</span>
+                                <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+                                  <div className="h-full bg-brand" style={{ width: `${Math.min(100, Math.max(2, pct))}%` }} />
+                                </div>
+                                <span className="shrink-0 tabular-nums text-[10px] text-muted">
+                                  {bounded ? `${j.lower_limit!.toFixed(2)}…${j.upper_limit!.toFixed(2)}` : 'free'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      {!movable.length && <p className="text-xs text-muted">No joints yet.</p>}
+                    </div>
+                  </details>
+                )}
+
+                {/* 3. Sensors - the number itself shows proximity. */}
+                {mobile && (
+                  <details open>
+                    <summary className="cursor-pointer list-none border-t border-line pt-3 text-xs font-bold uppercase tracking-widest text-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand">
+                      Sensors
+                    </summary>
+                    <div className="mt-2 flex items-baseline justify-between text-sm">
+                      <span className="flex items-center gap-2 text-xs text-muted">
+                        <Radar size={14} className="text-brand" /> Distance ahead
+                      </span>
+                      <span
+                        className={`text-lg font-bold tabular-nums transition-colors ${
+                          front === undefined || front >= 5.99
+                            ? 'text-fg'
+                            : front < 0.6
+                              ? 'text-danger'
+                              : front < 1.5
+                                ? 'text-warn'
+                                : 'text-brand'
+                        }`}
+                      >
+                        {front === undefined ? '–' : front >= 5.99 ? 'clear' : `${front.toFixed(2)} m`}
+                      </span>
+                    </div>
+                    <p className="font-prose mt-1 text-xs text-muted">
+                      Commands like &quot;drive until you see the wall&quot; read this sensor.
+                    </p>
+                  </details>
+                )}
+
+                {/* 4. Scene - what is placed, click to select. */}
+                <details open={objects.length > 0}>
+                  <summary className="cursor-pointer list-none border-t border-line pt-3 text-xs font-bold uppercase tracking-widest text-muted focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand">
+                    Scene &middot; {objects.length}
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {objects.map((o) => (
+                      <button
+                        key={o.id}
+                        onClick={() => selectObject(o.id)}
+                        className={`flex w-full min-w-0 items-center gap-2 px-1 py-0.5 text-left text-xs transition hover:text-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand ${
+                          selectedId === o.id ? 'text-brand' : 'text-fg'
+                        }`}
+                      >
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: o.color }} />
+                        <span className="truncate">{o.name}</span>
+                        <span className="ml-auto shrink-0 text-[10px] text-muted">{o.kind}</span>
+                      </button>
+                    ))}
+                    {!objects.length && (
+                      <p className="font-prose text-xs text-muted">Nothing placed yet &mdash; use the Shapes tab.</p>
+                    )}
+                  </div>
+                </details>
+
+                {/* 5. Load robot - demoted to the bottom. */}
+                <section>
+                  <h2 className="mb-2 border-t border-line pt-3 text-xs font-bold uppercase tracking-widest text-muted">
+                    Load robot
+                  </h2>
                   <input
                     ref={fileInput}
                     type="file"
@@ -422,7 +540,7 @@ export function SimWorkspace() {
                   <button
                     onClick={() => fileInput.current?.click()}
                     disabled={busy || !health}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-fg transition hover:border-brand hover:text-brand disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-fg transition hover:border-brand hover:text-brand disabled:opacity-50"
                   >
                     {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
                     Upload URDF / Xacro / ZIP
@@ -430,101 +548,13 @@ export function SimWorkspace() {
                   <button
                     onClick={() => folderInput.current?.click()}
                     disabled={busy || !health}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-brand transition hover:bg-brand/10 disabled:opacity-50"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-muted transition hover:border-brand hover:text-brand disabled:opacity-50"
                   >
                     <FolderUp size={15} />
                     Upload a robot folder
                   </button>
-                  <p className="font-prose mt-2 text-xs text-muted">
-                    Accepts .urdf or .xacro files, or a .zip / folder that also holds the meshes. You can drop files onto the
-                    viewport too.
-                  </p>
+                  <p className="font-prose mt-1.5 text-xs text-muted">.urdf, .xacro or .zip &mdash; or drop files onto the viewport.</p>
                 </section>
-
-                <section>
-                  <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-brand">Active robot</h2>
-                  <div className="rounded-xl border border-brand/50 bg-brand/5 px-3 py-2 text-sm">
-                    <div className="flex items-center gap-2 font-semibold text-brand">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-                      TurtleBot3 + OpenMANIPULATOR-X
-                    </div>
-                    <p className="font-prose mt-1 text-xs text-muted">
-                      Imported from the official ROS 2 packages; lidar, IMU and camera simulated in Gazebo.
-                    </p>
-                  </div>
-                  {robot && (
-                    <details className="mt-2 rounded-xl border border-line bg-surfaceAlt px-3 py-2 text-xs">
-                      <summary className="cursor-pointer font-semibold text-fg">
-                        Kinematic chain - {robot.joints.filter((j) => j.type !== 'fixed').length} joints
-                      </summary>
-                      <div className="mt-2 space-y-1">
-                        {robot.joints
-                          .filter((j) => j.type !== 'fixed')
-                          .map((j) => (
-                            <div key={j.name} className="flex items-center justify-between gap-2">
-                              <span className="truncate text-muted">{j.name}</span>
-                              <span className="tabular-nums text-fg">
-                                {(snapshot.joints[j.name] ?? 0).toFixed(2)}
-                                <span className="ml-1 text-muted">{j.type === 'prismatic' ? 'm' : 'rad'}</span>
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </details>
-                  )}
-                </section>
-
-                {mobile ? (
-                  <section>
-                    <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-brand">Sensors</h2>
-                    <div className="rounded-xl border border-line bg-surfaceAlt p-3 text-sm">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <Radar size={16} className="text-brand" />
-                        Range sensor (lidar-style)
-                      </div>
-                      <div className="mt-2 flex items-baseline justify-between">
-                        <span className="text-xs text-muted">Distance ahead</span>
-                        <span className="text-lg font-bold tabular-nums">
-                          {front === undefined ? '–' : front >= 5.99 ? 'clear' : `${front.toFixed(2)} m`}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-muted">
-                        The rays in the viewport show what the robot &quot;sees&quot;. Commands like &quot;if you see the wall,
-                        turn left&quot; use this sensor.
-                      </p>
-                    </div>
-                  </section>
-                ) : (
-                  <section>
-                    <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-brand">Joints</h2>
-                    <div className="space-y-3">
-                      {movable.map((j) => {
-                        const v = snapshot.joints[j.name] ?? 0;
-                        const bounded =
-                          j.type !== 'continuous' &&
-                          j.lower_limit != null &&
-                          j.upper_limit != null &&
-                          j.upper_limit > j.lower_limit;
-                        const pct = bounded ? ((v - j.lower_limit!) / (j.upper_limit! - j.lower_limit!)) * 100 : 50;
-                        return (
-                          <div key={j.name}>
-                            <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                              <span className="truncate font-medium">{j.name}</span>
-                              <span className="shrink-0 tabular-nums text-muted">{((v * 180) / Math.PI).toFixed(1)}°</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-line">
-                              <div
-                                className="h-full bg-brand"
-                                style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {!movable.length && <p className="text-xs text-muted">No joints yet.</p>}
-                    </div>
-                  </section>
-                )}
               </div>
             ) : (
               <ShapesPanel
